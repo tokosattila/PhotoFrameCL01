@@ -1,0 +1,45 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "PlatformIO Build",
+			"type": "shell",
+			"command": "platformio",
+			"windows": {
+				"command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe"
+			},
+			"args": [
+				"run",
+				"-e",
+				"photo_frame_cl_01"
+			],
+			"problemMatcher": [
+				"$platformio"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "PlatformIO Test",
+			"type": "shell",
+			"command": "platformio",
+			"windows": {
+				"command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe"
+			},
+			"args": [
+				"test",
+				"-e",
+				"native"
+			],
+			"problemMatcher": [
+				"$platformio"
+			],
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			}
+		}
+	]
+}
