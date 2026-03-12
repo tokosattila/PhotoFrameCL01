@@ -1,4 +1,5 @@
 #include <App/Global.h>
+#include <App/Dashboard.h>
 
 namespace App {
   RTC_DATA_ATTR uint32_t gBootCount = 0;
@@ -17,6 +18,7 @@ class Application {
   DEFINE_TAG("APP");
   friend class AutoGuard<Application>;
   static bool sButtonTaskStarted;
+  static bool sDashboardTaskStarted;
 
   public:
 
@@ -55,7 +57,6 @@ class Application {
       #endif
       UTL.DisableBrownout();
       UTL.DisableBT();
-      UTL.DisableTouchPad();
       if (RTC.Init() && RTC.IsAvailable()) {
         RTC.SyncToSystem();
         RTC.End();
@@ -123,6 +124,21 @@ class Application {
       mCfg = CFG.Get<SAppConfig>();
     }
 
+    static EDisplayRotate ResolveDisplayRotate(uint16_t tRotate) {
+      switch (tRotate) {
+        case 0:
+          return EDisplayRotate::Rotate0;
+        case 90:
+          return EDisplayRotate::Rotate90;
+        case 180:
+          return EDisplayRotate::Rotate180;
+        case 270:
+          return EDisplayRotate::Rotate270;
+        default:
+          return static_cast<EDisplayRotate>(DISPLAY_ROTATE_FALLBACK);
+      }
+    }
+
     void ShowDefaultImage() {
       DSP.PrintImage(0, 0, DefaultImageWidth, DefaultImageHeight, DefaultImage);
       DSP.Update();
@@ -147,7 +163,7 @@ class Application {
       UTL.PrintInfo("Device → starts in Photo Frame Mode", EUtilsInfoType::Single);
       STG.Init(true);
       DSP.Init();
-      DSP.SetRotate(EDisplayRotate::Rotate0);
+      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       const char *tImage = mCfg.Display.CurrentFile.isEmpty() ? STG.GetNextFile("")  : mCfg.Display.CurrentFile.c_str();
       if (TryDisplayImage(tImage)) SaveNextImage(STG.GetNextFile(tImage));
       else {
@@ -183,13 +199,13 @@ class Application {
       }
       STG.Init(true);
       DSP.Init();
-      DSP.SetRotate(EDisplayRotate::Rotate0);
+      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       CON.Init(true);
       vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
       xLOG_FLUSH();
       if (!sButtonTaskStarted) {
-        BTN.AddPin(mCfg.Device.SettingPin, "[settings button]", false);
         BTN.AddPin(mCfg.Device.ResetPin, "[reset button]", true);
+        BTN.AddPin(mCfg.Device.SettingPin, "[settings button]", false);
         BTN.Start();
         xTaskCreatePinnedToCore(&ButtonTask, "ButtonTask", BUTTON_TASK_STACK_SIZE, nullptr, 12, nullptr, 1);
         sButtonTaskStarted = true;
@@ -237,14 +253,37 @@ class Application {
         DSP.Update();
       }
       while (!CON.HasActiveWifiClient()) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
-      if (tIsApMode) DSP.FillRect(0, 300, mCfg.Display.Width, 50, EDisplayColor::White);
+      if (tIsApMode) DSP.FillRect(0, tInfoTextY, mCfg.Display.Width, 50, EDisplayColor::White);
       DSP.SetFont(&OpenSans13B);
       DSP.SetColor(EDisplayColor::Black);
-      if (mCfg.Connection.MdnsEnable) {
-        snprintf(tTitleBuffer, sizeof(tTitleBuffer), "localhost %s.local", mCfg.Connection.MdnsName.c_str());
-        DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
-      }
+      const char *tHost = mCfg.Connection.MdnsEnable ? mCfg.Connection.MdnsName.c_str() : CON.GetIpAddress();
+      const char *tHostSuffix = mCfg.Connection.MdnsEnable ? ".local/" : "/";
+      snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Admin URL: http://%s%s", tHost ? tHost : "", tHostSuffix);
+      DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
       DSP.Update();
+      DSH.Init([]() {
+        Guard tLock;
+        DSH.Stop();
+        DSP.OffAll();
+        STG.End();
+        CON.Stop();
+        vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
+        esp_restart();
+      }, []() {
+        Guard tLock;
+        DSH.Stop();
+        DSP.OffAll();
+        STG.End();
+        CON.Stop();
+        CFG.FactoryReset();
+        vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
+        esp_restart();
+      });
+      DSH.Start();
+      if (!sDashboardTaskStarted) {
+        xTaskCreatePinnedToCore(&DashboardTask, "DashboardTask", DASHBOARD_TASK_STACK_SIZE, nullptr, 11, nullptr, 1);
+        sDashboardTaskStarted = true;
+      }
       UTL.PrintMemoryInfo();
       while (true) vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
     }
@@ -253,7 +292,7 @@ class Application {
       LED.Off(mCfg.Device.ActLedPin);
       UTL.PrintInfo("Device → starts in Low Battery Mode", EUtilsInfoType::Single);
       DSP.Init();
-      DSP.SetRotate(EDisplayRotate::Rotate0);
+      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       char tBuffer[32];
       const int32_t tCanvasWidth = DSP.GetCanvasWidth();
       const int32_t tCanvasHeight = DSP.GetCanvasHeight();
@@ -296,7 +335,7 @@ class Application {
         UTL.SleepLowBattery();
         __builtin_unreachable();
       #else
-        while (true) vTaskDelay(1e3 / portTICK_PERIOD_MS);
+        while (true) vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
       #endif     
     }
     
@@ -306,9 +345,17 @@ class Application {
         vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
       }
     }
+
+    static void DashboardTask(void *tParameter) {
+      while (true) {
+        DSH.HandleEvents();
+        vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
+      }
+    }
 };
 
 bool Application::sButtonTaskStarted = false;
+bool Application::sDashboardTaskStarted = false;
 
 #define APP Application::Instance()
 

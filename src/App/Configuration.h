@@ -36,6 +36,7 @@ namespace App {
       static constexpr const char *kNvsDisplayBrightness = "dsp.jpg.brght";
       static constexpr const char *kNvsDisplayContrast = "dsp.jpg.cntrst";
       static constexpr const char *kNvsDisplayGamma = "dsp.jpg.gmm";
+      static constexpr const char *kNvsDisplayRotate = "dsp.rotate";
       static constexpr const char *kNvsDisplayFile = "dsp.file";
       static constexpr const char *kNvsDisplayImageUpdatedAt = "dsp.file.upd";
       static constexpr const char *kNvsTimeServer = "tme.server";
@@ -60,6 +61,8 @@ namespace App {
       static constexpr const char *kNvsConMdnsName = "con.mdns.name";
       static constexpr const char *kNvsTimerWake = "tmr.wake";
       static constexpr const char *kNvsTimerWakeHour = "tmr.wake.hr";
+      static constexpr const char *kNvsDashUser = "dsh.user";
+      static constexpr const char *kNvsDashPassword = "dsh.password";
       static SAppConfig GetDefaultConfig();
       bool Begin(bool tReadOnly);
       void End();
@@ -73,6 +76,7 @@ namespace App {
   template<> SDisplayConfig Configuration_::Get<SDisplayConfig>();
   template<> STimerConfig Configuration_::Get<STimerConfig>();
   template<> SStorageConfig Configuration_::Get<SStorageConfig>();
+  template<> SDashboardConfig Configuration_::Get<SDashboardConfig>();
 
 };
 

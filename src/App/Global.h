@@ -47,6 +47,8 @@
 #include <WiFiUdp.h>
 #include <EPaperDriver.h>
 #include <JPEGDEC.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncWebSocket.h>
 
 namespace App {
 
@@ -201,6 +203,7 @@ namespace App {
   struct SDisplayConfig {
     int32_t Width = 0;
     int32_t Height = 0;
+    uint16_t Rotate = 0;
     Percentage JpgBrightness {25};
     Percentage JpgContrast {75};
     Percentage JpgGamma {125};
@@ -223,6 +226,12 @@ namespace App {
     SStorageConfig() = default;
   };
 
+  struct SDashboardConfig {
+    String User;
+    String Password;
+    SDashboardConfig() = default;
+  };
+
   struct SAppConfig {
     SDeviceConfig Device {};
     SNTPConfig Ntp {};
@@ -230,6 +239,7 @@ namespace App {
     SDisplayConfig Display {};
     STimerConfig Timer {};
     SStorageConfig Storage {};
+    SDashboardConfig Dashboard {};
     SAppConfig() = default;
   };
 
@@ -246,6 +256,7 @@ namespace App {
 
   constexpr uint16_t DISPLAY_WIDTH = 800;
   constexpr uint16_t DISPLAY_HEIGHT = 480;
+  constexpr uint16_t DISPLAY_ROTATE_FALLBACK = 0;
   constexpr const char *IMAGE_EXT = ".jpg";
 
   constexpr uint8_t NEXT_IMG_PIN = static_cast<uint8_t>(EDevicePins::Btn1);
@@ -274,6 +285,7 @@ namespace App {
   constexpr size_t LOOP_TASK_STACK_SIZE = 48 * KB;
   constexpr size_t BUTTON_TASK_STACK_SIZE = 16 * KB;
   constexpr size_t JPEG_DECODE_TASK_STACK_SIZE = 32 * KB;
+  constexpr size_t DASHBOARD_TASK_STACK_SIZE = 16 * KB;
 
   constexpr size_t ONE_SECOND_MS = 1000;
   constexpr uint32_t REBOOT_LONG_PRESS_MS = 3 * ONE_SECOND_MS;
@@ -307,6 +319,7 @@ namespace App {
 #include <App/Led.h>
 #include <App/Display.h>
 #include <App/Firmware.h>
+#include <App/Dashboard.h>
 
 #include <Fonts/OpenSans11.h>
 #include <Fonts/OpenSans11b.h>
@@ -328,5 +341,6 @@ namespace App {
 #define LED Led_::Instance()
 #define DSP Display_::Instance()
 #define FWU Firmware_::Instance()
+#define DSH Dashboard_::Instance()
 
 #endif

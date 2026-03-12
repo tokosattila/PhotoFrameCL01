@@ -86,6 +86,7 @@ namespace App {
     tDefaultConfig.Device.ActLedPin = ACT_LED_PIN;
     tDefaultConfig.Display.Width = DISPLAY_WIDTH;
     tDefaultConfig.Display.Height = DISPLAY_HEIGHT;
+    tDefaultConfig.Display.Rotate = DISPLAY_ROTATE_FALLBACK;
     tDefaultConfig.Display.JpgBrightness = Percentage(25);
     tDefaultConfig.Display.JpgContrast = Percentage(75);
     tDefaultConfig.Display.JpgGamma = Percentage(125);
@@ -115,6 +116,8 @@ namespace App {
     tDefaultConfig.Connection.MdnsName = "photoframecl01";
     tDefaultConfig.Timer.WakeUp = ETimerWakeUp::Daily;
     tDefaultConfig.Timer.WakeUpHour = 6;
+    tDefaultConfig.Dashboard.User = "admin";
+    tDefaultConfig.Dashboard.Password = "";
     return tDefaultConfig;
   }
 
@@ -213,6 +216,18 @@ namespace App {
     AccessConfig(true, [&]() {
       tCfg.Width = DISPLAY_WIDTH;
       tCfg.Height = DISPLAY_HEIGHT;
+      uint16_t tRotate = mConfig.getUShort(kNvsDisplayRotate, DISPLAY_ROTATE_FALLBACK);
+      switch (tRotate) {
+        case 0:
+        case 90:
+        case 180:
+        case 270:
+          tCfg.Rotate = tRotate;
+          break;
+        default:
+          tCfg.Rotate = DISPLAY_ROTATE_FALLBACK;
+          break;
+      }
       tCfg.JpgBrightness = Percentage(mConfig.getUChar(kNvsDisplayBrightness, 25));
       tCfg.JpgContrast = Percentage(mConfig.getUChar(kNvsDisplayContrast, 75));
       tCfg.JpgGamma = Percentage(mConfig.getUChar(kNvsDisplayGamma, 125));
@@ -240,6 +255,15 @@ namespace App {
     return tCfg;
   }
 
+  template<> SDashboardConfig Configuration_::Get<SDashboardConfig>() {
+    SDashboardConfig tCfg {};
+    AccessConfig(true, [&]() {
+      tCfg.User = mConfig.getString(kNvsDashUser, "admin");
+      tCfg.Password = mConfig.getString(kNvsDashPassword, "");
+    });
+    return tCfg;
+  }
+
   template<> SAppConfig Configuration_::Get<SAppConfig>() {
     SAppConfig tCfg {};
     tCfg.Device = Get<SDeviceConfig>();
@@ -248,6 +272,7 @@ namespace App {
     tCfg.Display = Get<SDisplayConfig>();
     tCfg.Timer = Get<STimerConfig>();
     tCfg.Storage = Get<SStorageConfig>();
+    tCfg.Dashboard = Get<SDashboardConfig>();
     return tCfg;
   }
 
@@ -257,7 +282,9 @@ namespace App {
     uint32_t tEpoch = static_cast<uint32_t>(time(nullptr));
     if (tEpoch == 0) tEpoch = RTC.GetEpoch();
     AccessConfig(false, [&]() {
-      tSuccess = mConfig.putString(kNvsDisplayFile, tValue);
+      size_t tBytesWritten = mConfig.putString(kNvsDisplayFile, tValue);
+      String tSaved = mConfig.getString(kNvsDisplayFile, "");
+      tSuccess = (tBytesWritten > 0) || (tSaved == String(tValue));
       if (tSuccess) tSuccess = mConfig.putULong(kNvsDisplayImageUpdatedAt, tEpoch);
     });
     if (!tSuccess) xLOG("Config → failed to save image name: %s", (tValue && tValue[0]) ? tValue : "<empty>");
@@ -274,40 +301,63 @@ namespace App {
 
   bool Configuration_::SaveAllConfig(const SAppConfig &tConfig) {
     bool tSuccess = true;
+    const char *tFailedKey = nullptr;
     AccessConfig(false, [&]() {
-      tSuccess = tSuccess && mConfig.putString(kNvsDeviceAppName, tConfig.Device.Name);
-      tSuccess = tSuccess && mConfig.putString(kNvsDeviceVersion, tConfig.Device.Version);
-      tSuccess = tSuccess && mConfig.putUChar(kNvsDeviceActLedPin, tConfig.Device.ActLedPin);
-      tSuccess = tSuccess && mConfig.putUChar(kNvsDisplayBrightness, tConfig.Display.JpgBrightness.Get());
-      tSuccess = tSuccess && mConfig.putUChar(kNvsDisplayContrast, tConfig.Display.JpgContrast.Get());
-      tSuccess = tSuccess && mConfig.putUChar(kNvsDisplayGamma, tConfig.Display.JpgGamma.Get());
-      if (tSuccess && tConfig.Display.CurrentFile.length() > 0) tSuccess = mConfig.putString(kNvsDisplayFile, tConfig.Display.CurrentFile);
-      tSuccess = tSuccess && mConfig.putULong(kNvsDisplayImageUpdatedAt, tConfig.Display.ImageUpdatedAt);
-      tSuccess = tSuccess && mConfig.putString(kNvsTimeServer, tConfig.Ntp.Server);
-      tSuccess = tSuccess && mConfig.putUShort(kNvsTimePort, tConfig.Ntp.NtpPort.Get());
-      tSuccess = tSuccess && mConfig.putInt(kNvsTimeGmtOffset, tConfig.Ntp.GMTOffset);
-      tSuccess = tSuccess && mConfig.putUInt(kNvsTimeUpdate, tConfig.Ntp.UpdateInterval);
-      tSuccess = tSuccess && mConfig.putBool(kNvsConApEnable, tConfig.Connection.ApModeEnable);
-      tSuccess = tSuccess && mConfig.putString(kNvsConApSsid, tConfig.Connection.ApSsid);
-      tSuccess = tSuccess && mConfig.putString(kNvsConApPass, tConfig.Connection.ApPassword);
-      tSuccess = tSuccess && mConfig.putString(kNvsConApIp, tConfig.Connection.ApIp);
-      tSuccess = tSuccess && mConfig.putString(kNvsConApGw, tConfig.Connection.ApGateway);
-      tSuccess = tSuccess && mConfig.putString(kNvsConApSubnet, tConfig.Connection.ApSubnet);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaSsid, tConfig.Connection.StaSsid);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaPass, tConfig.Connection.StaPassword);
-      tSuccess = tSuccess && mConfig.putBool(kNvsConStaEnable, tConfig.Connection.StaIpEnable);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaIp, tConfig.Connection.StaIp);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaGw, tConfig.Connection.StaGateway);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaSubnet, tConfig.Connection.StaSubnet);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaDns1, tConfig.Connection.StaPrimaryDns);
-      tSuccess = tSuccess && mConfig.putString(kNvsConStaDns2, tConfig.Connection.StaSecondaryDns);
-      tSuccess = tSuccess && mConfig.putBool(kNvsConMdnsEnable, tConfig.Connection.MdnsEnable);
-      tSuccess = tSuccess && mConfig.putString(kNvsConMdnsName, tConfig.Connection.MdnsName);
-      tSuccess = tSuccess && mConfig.putUChar(kNvsTimerWake, static_cast<uint8_t>(tConfig.Timer.WakeUp));
-      tSuccess = tSuccess && mConfig.putUChar(kNvsTimerWakeHour, tConfig.Timer.WakeUpHour);
+      auto tPutBool = [&](const char *tKey, bool tResult) {
+        if (!tSuccess) return;
+        if (!tResult) {
+          tSuccess = false;
+          tFailedKey = tKey;
+        }
+      };
+      auto tPutString = [&](const char *tKey, const String &tValue) {
+        if (!tSuccess) return;
+        size_t tBytesWritten = mConfig.putString(tKey, tValue);
+        if (tBytesWritten > 0) return;
+        // Empty strings may report 0 bytes written on some cores, verify persisted value.
+        String tSaved = mConfig.getString(tKey, "");
+        if (tSaved != tValue) {
+          tSuccess = false;
+          tFailedKey = tKey;
+        }
+      };
+
+      tPutString(kNvsDeviceAppName, tConfig.Device.Name);
+      tPutString(kNvsDeviceVersion, tConfig.Device.Version);
+      tPutBool(kNvsDeviceActLedPin, mConfig.putUChar(kNvsDeviceActLedPin, tConfig.Device.ActLedPin));
+      tPutBool(kNvsDisplayRotate, mConfig.putUShort(kNvsDisplayRotate, tConfig.Display.Rotate));
+      tPutBool(kNvsDisplayBrightness, mConfig.putUChar(kNvsDisplayBrightness, tConfig.Display.JpgBrightness.Get()));
+      tPutBool(kNvsDisplayContrast, mConfig.putUChar(kNvsDisplayContrast, tConfig.Display.JpgContrast.Get()));
+      tPutBool(kNvsDisplayGamma, mConfig.putUChar(kNvsDisplayGamma, tConfig.Display.JpgGamma.Get()));
+      if (tConfig.Display.CurrentFile.length() > 0) tPutString(kNvsDisplayFile, tConfig.Display.CurrentFile);
+      tPutBool(kNvsDisplayImageUpdatedAt, mConfig.putULong(kNvsDisplayImageUpdatedAt, tConfig.Display.ImageUpdatedAt));
+      tPutString(kNvsTimeServer, tConfig.Ntp.Server);
+      tPutBool(kNvsTimePort, mConfig.putUShort(kNvsTimePort, tConfig.Ntp.NtpPort.Get()));
+      tPutBool(kNvsTimeGmtOffset, mConfig.putInt(kNvsTimeGmtOffset, tConfig.Ntp.GMTOffset));
+      tPutBool(kNvsTimeUpdate, mConfig.putUInt(kNvsTimeUpdate, tConfig.Ntp.UpdateInterval));
+      tPutBool(kNvsConApEnable, mConfig.putBool(kNvsConApEnable, tConfig.Connection.ApModeEnable));
+      tPutString(kNvsConApSsid, tConfig.Connection.ApSsid);
+      tPutString(kNvsConApPass, tConfig.Connection.ApPassword);
+      tPutString(kNvsConApIp, tConfig.Connection.ApIp);
+      tPutString(kNvsConApGw, tConfig.Connection.ApGateway);
+      tPutString(kNvsConApSubnet, tConfig.Connection.ApSubnet);
+      tPutString(kNvsConStaSsid, tConfig.Connection.StaSsid);
+      tPutString(kNvsConStaPass, tConfig.Connection.StaPassword);
+      tPutBool(kNvsConStaEnable, mConfig.putBool(kNvsConStaEnable, tConfig.Connection.StaIpEnable));
+      tPutString(kNvsConStaIp, tConfig.Connection.StaIp);
+      tPutString(kNvsConStaGw, tConfig.Connection.StaGateway);
+      tPutString(kNvsConStaSubnet, tConfig.Connection.StaSubnet);
+      tPutString(kNvsConStaDns1, tConfig.Connection.StaPrimaryDns);
+      tPutString(kNvsConStaDns2, tConfig.Connection.StaSecondaryDns);
+      tPutBool(kNvsConMdnsEnable, mConfig.putBool(kNvsConMdnsEnable, tConfig.Connection.MdnsEnable));
+      tPutString(kNvsConMdnsName, tConfig.Connection.MdnsName);
+      tPutBool(kNvsTimerWake, mConfig.putUChar(kNvsTimerWake, static_cast<uint8_t>(tConfig.Timer.WakeUp)));
+      tPutBool(kNvsTimerWakeHour, mConfig.putUChar(kNvsTimerWakeHour, tConfig.Timer.WakeUpHour));
+      tPutString(kNvsDashUser, tConfig.Dashboard.User);
+      tPutString(kNvsDashPassword, tConfig.Dashboard.Password);
     });
     if (tSuccess) xLOG("Config → save successful");
-    else xLOG("Config → save failed some values may not have been written!");
+    else xLOG("Config → save failed some values may not have been written! (key: %s)", tFailedKey ? tFailedKey : "unknown");
     return tSuccess;
   }
 

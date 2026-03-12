@@ -188,13 +188,6 @@ namespace App {
     xLOG("Bluetooth → disabled");
   }
 
-  void Utils_::DisableTouchPad() {
-    Guard tLock;
-    touch_pad_init();
-    touch_pad_deinit();
-    xLOG("Touch Pad → disabled");
-  }
-
   void Utils_::DisableBrownout() {
     Guard tLock;
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);

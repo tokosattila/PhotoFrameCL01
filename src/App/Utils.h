@@ -24,7 +24,6 @@ namespace App {
       void ReloadConfig();
       static void SetCPUFrequency(ECPUFrequency tFrequency = ECPUFrequency::F240MHz);
       static void DisableBT();
-      static void DisableTouchPad();
       static void DisableBrownout();
       static void ByteToReadableSize(uint64_t tBytes, char *tBuffer, size_t tLength);
       const char *EpochToReadableFormat(unsigned long tEpoch, bool tAsDateTime, char *tBuffer, size_t tLength);
