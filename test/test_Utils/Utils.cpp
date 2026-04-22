@@ -11,6 +11,8 @@
 #include <cerrno>
 #include <cmath>
 #include <cctype>
+#include <vector>
+#include <string>
 
 #ifdef _WIN32
   #define strcasecmp _stricmp
@@ -65,6 +67,49 @@ bool WasWokenByPin(uint32_t tWakeCause, uint64_t tWakeStatus, uint8_t tPin) {
   static constexpr uint32_t kExt1WakeupCause = 3;
   if (tWakeCause != kExt1WakeupCause) return false;
   return (tWakeStatus & (1ULL << tPin)) != 0;
+}
+
+std::string NormalizeDashboardLanguageCode(const std::string &tLanguage) {
+  std::string tNormalized = tLanguage;
+  for (char &tChar : tNormalized) tChar = static_cast<char>(tolower(static_cast<unsigned char>(tChar)));
+  if (tNormalized == "en" || tNormalized == "hu") return tNormalized;
+  return std::string();
+}
+
+bool IsDashboardLanguageEnabled(const std::vector<std::string> &tLanguages, const std::string &tLanguage) {
+  const std::string tNormalized = NormalizeDashboardLanguageCode(tLanguage);
+  if (tNormalized.empty()) return false;
+  for (const std::string &tItem : tLanguages) {
+    if (NormalizeDashboardLanguageCode(tItem) == tNormalized) return true;
+  }
+  return false;
+}
+
+std::string ResolveDashboardLanguage(const std::vector<std::string> &tLanguages, const std::string &tPreferredLanguage) {
+  const std::string tNormalizedPreferredLanguage = NormalizeDashboardLanguageCode(tPreferredLanguage);
+  if (!tNormalizedPreferredLanguage.empty() && IsDashboardLanguageEnabled(tLanguages, tNormalizedPreferredLanguage)) return tNormalizedPreferredLanguage;
+  if (IsDashboardLanguageEnabled(tLanguages, "en")) return std::string("en");
+  for (const std::string &tLanguage : tLanguages) {
+    const std::string tNormalizedLanguage = NormalizeDashboardLanguageCode(tLanguage);
+    if (!tNormalizedLanguage.empty()) return tNormalizedLanguage;
+  }
+  return !tNormalizedPreferredLanguage.empty() ? tNormalizedPreferredLanguage : std::string("en");
+}
+
+void NormalizeDashboardEnabledLanguages(std::vector<std::string> &tLanguages, const std::string &tPreferredLanguage) {
+  std::vector<std::string> tNormalizedLanguages;
+  auto tAppendUnique = [&](const std::string &tLanguage) {
+    const std::string tNormalizedLanguage = NormalizeDashboardLanguageCode(tLanguage);
+    if (tNormalizedLanguage.empty()) return;
+    for (const std::string &tExisting : tNormalizedLanguages) {
+      if (tExisting == tNormalizedLanguage) return;
+    }
+    tNormalizedLanguages.push_back(tNormalizedLanguage);
+  };
+  for (const std::string &tLanguage : tLanguages) tAppendUnique(tLanguage);
+  if (tNormalizedLanguages.empty()) tAppendUnique(ResolveDashboardLanguage(tNormalizedLanguages, tPreferredLanguage));
+  if (tNormalizedLanguages.empty()) tAppendUnique("en");
+  tLanguages = tNormalizedLanguages;
 }
 
 // ============================================================================
@@ -306,6 +351,10 @@ uint64_t SecondsUntilHour(uint8_t tTargetHour, uint8_t tNowHour, uint8_t tNowMin
   return tTargetSec - tNowSec;
 }
 
+bool HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs) {
+  return static_cast<uint32_t>(tNowMs - tStartMs) >= tDelayMs;
+}
+
 // ============================================================================
 // SecondsUntilHour Tests
 // ============================================================================
@@ -338,6 +387,19 @@ void test_SecondsUntilHour_hour_23() {
 void test_SecondsUntilHour_with_minutes_seconds() {
   TEST_ASSERT_EQUAL_UINT32(5 * 3600 + 1800, (uint32_t)SecondsUntilHour(10, 4, 30, 0));
   TEST_ASSERT_EQUAL_UINT32(5 * 3600 + 1800 - 45, (uint32_t)SecondsUntilHour(10, 4, 30, 45));
+}
+
+void test_HasElapsedMs_not_elapsed_yet() {
+  TEST_ASSERT_FALSE(HasElapsedMs(1000, 1200, 500));
+}
+
+void test_HasElapsedMs_elapsed_normally() {
+  TEST_ASSERT_TRUE(HasElapsedMs(1000, 1600, 500));
+}
+
+void test_HasElapsedMs_handles_wraparound() {
+  TEST_ASSERT_TRUE(HasElapsedMs(0xFFFFFF00UL, 0x00000100UL, 300));
+  TEST_ASSERT_FALSE(HasElapsedMs(0xFFFFFF00UL, 0x00000020UL, 300));
 }
 
 // ============================================================================
@@ -473,6 +535,22 @@ void test_IsSameTarget() {
   TEST_ASSERT_TRUE(IsSameTarget("SD", "sd"));
   TEST_ASSERT_FALSE(IsSameTarget("sd", "lfs"));
   TEST_ASSERT_FALSE(IsSameTarget("lfs", "sdcard"));
+}
+
+void test_NormalizeDashboardEnabledLanguages_keeps_user_disabled_current_language_off() {
+  std::vector<std::string> tLanguages = { "en" };
+  NormalizeDashboardEnabledLanguages(tLanguages, "hu");
+  TEST_ASSERT_EQUAL_UINT32(1, static_cast<uint32_t>(tLanguages.size()));
+  TEST_ASSERT_TRUE(IsDashboardLanguageEnabled(tLanguages, "en"));
+  TEST_ASSERT_FALSE(IsDashboardLanguageEnabled(tLanguages, "hu"));
+}
+
+void test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode() {
+  std::vector<std::string> tLanguages = { "hu" };
+  NormalizeDashboardEnabledLanguages(tLanguages, "hu");
+  TEST_ASSERT_EQUAL_UINT32(1, static_cast<uint32_t>(tLanguages.size()));
+  TEST_ASSERT_TRUE(IsDashboardLanguageEnabled(tLanguages, "hu"));
+  TEST_ASSERT_FALSE(IsDashboardLanguageEnabled(tLanguages, "en"));
 }
 
 // ============================================================================
@@ -625,6 +703,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_SecondsUntilHour_midnight_edge);
   RUN_TEST(test_SecondsUntilHour_hour_23);
   RUN_TEST(test_SecondsUntilHour_with_minutes_seconds);
+  RUN_TEST(test_HasElapsedMs_not_elapsed_yet);
+  RUN_TEST(test_HasElapsedMs_elapsed_normally);
+  RUN_TEST(test_HasElapsedMs_handles_wraparound);
   
   // GlobMatch tests
   RUN_TEST(test_GlobMatch_exact);
@@ -642,6 +723,10 @@ int main(int argc, char **argv) {
   RUN_TEST(test_IsLFS);
   RUN_TEST(test_IsValidTarget);
   RUN_TEST(test_IsSameTarget);
+
+  // Dashboard language normalization tests
+  RUN_TEST(test_NormalizeDashboardEnabledLanguages_keeps_user_disabled_current_language_off);
+  RUN_TEST(test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode);
   
   // SplitPathAndFile tests
   RUN_TEST(test_SplitPathAndFile_absolute_path);

@@ -1,5 +1,4 @@
 #include <App/Global.h>
-#include <App/Dashboard.h>
 
 namespace App {
   RTC_DATA_ATTR uint32_t gBootCount = 0;
@@ -55,17 +54,19 @@ class Application {
           UTL.PrintDeviceInfo(); 
         }
       #endif
-      UTL.DisableBrownout();
       UTL.DisableBT();
-      if (RTC.Init() && RTC.IsAvailable()) {
+      if (RTC.Init(true) && RTC.IsAvailable()) {
         RTC.SyncToSystem();
         RTC.End();
-        char tBuf[24];
-        xLOG("Date/Time → %s", UTL.EpochToReadableFormat(time(nullptr), true, tBuf, sizeof(tBuf)));
       } else RTC.End();
       BAT.Init(true);
-      const bool tBatteryIsAvailable = BAT.IsAvailable() && BAT.IsBatteryConnected() && BAT.GetPercentage() == 0;
-      if (tBatteryIsAvailable) {
+      const bool tBatteryAvailable = BAT.IsAvailable();
+      const bool tBatteryConnected = tBatteryAvailable && BAT.IsBatteryConnected();
+      if (!tBatteryConnected) UTL.DisableBrownout();
+      SND.Init(true);
+      SND.SetVolume(40);
+      const bool tLowBatteryDetected = BAT.IsLowBattery();
+      if (tLowBatteryDetected) {
         LowBatteryMode();
         return;
       }
@@ -88,7 +89,6 @@ class Application {
           sButtonTaskStarted = true;
         }
       #endif  
-      FWU.CleanupUpdateDirOnBoot();
       const uint8_t tSettingPin = static_cast<uint8_t>(mCfg.Device.SettingPin);
       #if PRODUCTION
         if (UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
@@ -96,8 +96,9 @@ class Application {
       #else
         const bool tMaintenanceRequested = (gMaintenanceBootRequest == kMaintenanceBootMagic);
         gMaintenanceBootRequest = 0;
-        if (tMaintenanceRequested || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
-        else PhotoFrameMode();
+        MaintenanceMode();
+        /*if (tMaintenanceRequested || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
+        else PhotoFrameMode();*/
       #endif
     }
 
@@ -135,7 +136,7 @@ class Application {
         case 270:
           return EDisplayRotate::Rotate270;
         default:
-          return static_cast<EDisplayRotate>(DISPLAY_ROTATE_FALLBACK);
+          return static_cast<EDisplayRotate>(DISPLAY_ROTATE);
       }
     }
 
@@ -145,8 +146,8 @@ class Application {
     }
 
     void SaveNextImage(const char *tNextImage) {
-      if (!CFG.SaveImageName(tNextImage)) xLOG("Failed to save → next image name");
-      else xLOG("Display → next image: %s", tNextImage);
+      if (!CFG.SaveImageName(tNextImage)) xLOG("Failed to save next image name");
+      else xLOG("Next image → %s", tNextImage);
     }
 
     bool TryDisplayImage(const char *tImage) {
@@ -154,13 +155,13 @@ class Application {
       char tFullPath[128] = "";
       snprintf(tFullPath, sizeof(tFullPath), "/%s/%s", mCfg.Display.ImagesDir.c_str(), tImage);
       if (!STG.Exists(tFullPath)) return false;
-      xLOG("Display → trying image: %s", tImage);
+      xLOG("Trying image → %s", tImage);
       return DSP.PrintJpg(0, 0, tImage);
     }
 
     void PhotoFrameMode() {
       ReloadConfig();
-      UTL.PrintInfo("Device → starts in Photo Frame Mode", EUtilsInfoType::Single);
+      UTL.PrintInfo("Device starts in Photo Frame Mode", EUtilsInfoType::Single);
       STG.Init(true);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
@@ -171,10 +172,10 @@ class Application {
         const char *tNextImage = STG.GetNextFile(tImage ? tImage : "");
         if (TryDisplayImage(tNextImage)) SaveNextImage(STG.GetNextFile(tNextImage));
         else {
-          xLOG("Displaying default image.");
+          xLOG("Displaying default image");
           ShowDefaultImage();
-          if (!CFG.SaveImageName("")) xLOG("Failed to clear image name.");
-          else xLOG("Image name cleared.");
+          if (!CFG.SaveImageName("")) xLOG("Failed to clear image name");
+          else xLOG("Image name cleared");
         }
       }
       UTL.PrintMemoryInfo();
@@ -189,20 +190,18 @@ class Application {
     }
 
     void MaintenanceMode() {
-      UTL.SetCPUFrequency(ECPUFrequency::F240MHz);
       ReloadConfig();
+      const bool tBatteryConnected = BAT.IsAvailable() && BAT.IsBatteryConnected();
+      UTL.SetCPUFrequency(tBatteryConnected ? ECPUFrequency::F160MHz : ECPUFrequency::F240MHz);
       LED.On(mCfg.Device.ActLedPin);
       {
         char tText[45] = "";
-        snprintf(tText, sizeof(tText), "Device → starts in Maintenance [%s] Mode", (mCfg.Connection.ApModeEnable ? "AP" : "STA"));
+        snprintf(tText, sizeof(tText), "Device starts in Maintenance [%s] Mode", (mCfg.Connection.ApModeEnable ? "AP" : "STA"));
         UTL.PrintInfo(tText, EUtilsInfoType::Single);
       }
       STG.Init(true);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
-      CON.Init(true);
-      vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
-      xLOG_FLUSH();
       if (!sButtonTaskStarted) {
         BTN.AddPin(mCfg.Device.ResetPin, "[reset button]", true);
         BTN.AddPin(mCfg.Device.SettingPin, "[settings button]", false);
@@ -212,7 +211,7 @@ class Application {
       }
       BTN.AddLongPressCallback(mCfg.Device.SettingPin, []() {
         #if !PRODUCTION
-          xLOG("Device → rebooting...");
+          xLOG("Device rebooting...");
           vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
         #endif
         { 
@@ -225,7 +224,7 @@ class Application {
       }, REBOOT_LONG_PRESS_MS);
       BTN.AddLongPressCallback(mCfg.Device.ResetPin, []() {
         #if !PRODUCTION
-          xLOG("Device → factory reset...");
+          xLOG("Device preparing restore factory settings...");
           vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
         #endif
         { 
@@ -250,17 +249,12 @@ class Application {
         DSP.SetFont(&OpenSans13B);
         snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Connect to Wifi AP Mode to SSID: %s", mCfg.Connection.ApSsid.c_str());
         DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
-        DSP.Update();
+        if (!tBatteryConnected) DSP.Update();
+        else xLOG("Skipping maintenance e-paper update in AP mode on battery");
       }
-      while (!CON.HasActiveWifiClient()) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
-      if (tIsApMode) DSP.FillRect(0, tInfoTextY, mCfg.Display.Width, 50, EDisplayColor::White);
-      DSP.SetFont(&OpenSans13B);
-      DSP.SetColor(EDisplayColor::Black);
-      const char *tHost = mCfg.Connection.MdnsEnable ? mCfg.Connection.MdnsName.c_str() : CON.GetIpAddress();
-      const char *tHostSuffix = mCfg.Connection.MdnsEnable ? ".local/" : "/";
-      snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Admin URL: http://%s%s", tHost ? tHost : "", tHostSuffix);
-      DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
-      DSP.Update();
+      xLOG_FLUSH();
+      CON.Init(true);
+      vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
       DSH.Init([]() {
         Guard tLock;
         DSH.Stop();
@@ -284,13 +278,29 @@ class Application {
         xTaskCreatePinnedToCore(&DashboardTask, "DashboardTask", DASHBOARD_TASK_STACK_SIZE, nullptr, 11, nullptr, 1);
         sDashboardTaskStarted = true;
       }
+      bool tMaintenanceSoundPlayed = false;
+      while (!CON.HasActiveWifiClient()) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
+      if (!tMaintenanceSoundPlayed) {
+        tMaintenanceSoundPlayed = SND.Play(kMaintenanceSound);
+        xLOG("Sound playback → %s", tMaintenanceSoundPlayed ? "Ok" : "Failed");
+      }
+      if (tIsApMode) DSP.FillRect(0, tInfoTextY, mCfg.Display.Width, 50, EDisplayColor::White);
+      DSP.SetFont(&OpenSans13B);
+      DSP.SetColor(EDisplayColor::Black);
+      const char *tHost = mCfg.Connection.MdnsEnable ? mCfg.Connection.MdnsName.c_str() : CON.GetIpAddress();
+      const char *tHostSuffix = mCfg.Connection.MdnsEnable ? ".local/" : "/";
+      snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Admin URL: http://%s%s", tHost ? tHost : "", tHostSuffix);
+      DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
+      if (!tIsApMode) DSP.Update();
       UTL.PrintMemoryInfo();
       while (true) vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
     }
 
     void LowBatteryMode() {
+      const bool tLowBatterySoundPlayed = SND.Play(kLowBatterySound);
+      xLOG("Low battery sound playback → %s", tLowBatterySoundPlayed ? "Ok" : "Failed");
       LED.Off(mCfg.Device.ActLedPin);
-      UTL.PrintInfo("Device → starts in Low Battery Mode", EUtilsInfoType::Single);
+      UTL.PrintInfo("Device starts in Low Battery Mode", EUtilsInfoType::Single);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       char tBuffer[32];

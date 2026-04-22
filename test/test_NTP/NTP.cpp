@@ -60,6 +60,11 @@ void GetTimeFromEpoch(unsigned long tEpoch, int &tHours, int &tMinutes, int &tSe
   tSeconds = tEpoch % SECONDS_PER_MINUTE;
 }
 
+unsigned long ApplyConfiguredOffset(unsigned long tEpoch, long tGmtOffset, long tDaylightOffset) {
+  long tLocalEpoch = static_cast<long>(tEpoch) + tGmtOffset + tDaylightOffset;
+  return tLocalEpoch > 0 ? static_cast<unsigned long>(tLocalEpoch) : 0UL;
+}
+
 // ============================================================================
 // FormatTwoDigits Tests
 // ============================================================================
@@ -273,6 +278,14 @@ void test_GetTimeFromEpoch_end_of_day() {
   TEST_ASSERT_EQUAL_INT(59, seconds);
 }
 
+void test_ApplyConfiguredOffset_applies_gmt_and_dst() {
+  TEST_ASSERT_EQUAL_UINT32(1714543200UL, ApplyConfiguredOffset(1714528800UL, 7200, 7200));
+}
+
+void test_ApplyConfiguredOffset_supports_negative_offsets() {
+  TEST_ASSERT_EQUAL_UINT32(1714510800UL, ApplyConfiguredOffset(1714528800UL, -18000, 0));
+}
+
 // ============================================================================
 // Test Runner
 // ============================================================================
@@ -316,6 +329,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_GetTimeFromEpoch_noon);
   RUN_TEST(test_GetTimeFromEpoch_specific_time);
   RUN_TEST(test_GetTimeFromEpoch_end_of_day);
+  RUN_TEST(test_ApplyConfiguredOffset_applies_gmt_and_dst);
+  RUN_TEST(test_ApplyConfiguredOffset_supports_negative_offsets);
   
   return UNITY_END();
 }

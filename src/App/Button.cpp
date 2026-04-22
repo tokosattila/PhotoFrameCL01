@@ -42,7 +42,7 @@ namespace App {
     };
     mDebounceData.push_back(tDebounce);
     mCallbacks.push_back({});
-    xLOG("Button → added pin %d %s", tPin, (tMessage ? tMessage : ""));
+    xLOG("Button added pin %d %s", tPin, (tMessage ? tMessage : ""));
   }
 
   void Button_::Start() {
@@ -51,7 +51,6 @@ namespace App {
       xLOG("No pins added. Call AddPin() first.");
       return;
     }
-    xLOG("Button → starting with %zu pins.", mDebounceData.size());
     xTaskCreatePinnedToCore(&ButtonEventTask, "ButtonEventTask", kTaskStack, this, 10, &mTaskHandle, 1);
   }
 

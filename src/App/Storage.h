@@ -13,13 +13,11 @@ namespace App {
       static void Lock();
       static void Unlock();
       bool Init(bool tVerbose = true);
+      void ReloadConfig();
       void End();
       bool IsMounted() const { return mMounted; }
       bool IsSDCard() const { return mActiveType == EFileSystemType::SDCard; }
-      bool IsLittleFS() const { return mActiveType == EFileSystemType::LittleFS; }
-      EFileSystemType GetActiveType() const { return mActiveType; }
       const char *GetActiveName() const;
-      bool HasFallback() const { return mFallbackActive; }
       File OpenFile(const char *tPath, const char *tMode = FILE_READ, bool tCreate = false);
       const char *ReadFile(const char *tPath);
       bool WriteFile(const char *tPath, const char *tContent, bool tAppend = false);
@@ -27,19 +25,16 @@ namespace App {
       const char *ListDir(const char *tPath);
       size_t GetListPos() const;
       const char *GetNextFile(const char *tCurrentFile);
-      bool MakeDir(const char *tPath);
-      bool RemoveDir(const char *tPath);
       bool Exists(const char *tPath);
       const char *NormalizePath(const char *tPath);
       uint64_t TotalBytes();
       uint64_t UsedBytes();
-      uint64_t FreeBytes() { return TotalBytes() - UsedBytes(); }
-      const char *CatFile(const char *tPath);
     private:
       Storage_();
       ~Storage_();
       Storage_(const Storage_ &) = delete;
       SemaphoreHandle_t mMutex = nullptr;
+      SAppConfig mCfg {};
       EFileSystemType mActiveType = EFileSystemType::LittleFS;
       bool mMounted = false;
       bool mFallbackActive = false;
@@ -48,7 +43,10 @@ namespace App {
       Storage_ &operator=(const Storage_ &) = delete;
       bool TryInitSDCard(bool tVerbose = true);
       bool TryInitLittleFS(bool tVerbose = true);
-      bool HasImagesInDir(EFileSystemType tType);
+      bool IsTypeAvailable(EFileSystemType tType) const;
+      bool EnsureImagesDir(EFileSystemType tType);
+      bool TryFormatAndRecover(EFileSystemType tType);
+      void PersistStorageSwitch(EFileSystemType tType, bool tVerbose);
       void SelectActiveStorage(bool tVerbose = true);
   };
 

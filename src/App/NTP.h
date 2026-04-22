@@ -16,13 +16,10 @@ namespace App {
       bool Begin();
       void End();
       bool IsAvailable();
-      unsigned long EpochTime();
       void GetTime(char *tOutputBuffer, uint8_t tBufferSize, char tFormat = ' ');
       void GetDate(char *tOutputBuffer, uint8_t tBufferSize, char tFormat = ' ');
       unsigned long GetCurrentEpoch();
       unsigned long GetCurrentEpochUTC();
-      String Time(char format = ' ');
-      String Date(char format = ' ');
       bool SyncSystemTime();
       void PrintDateTimeInfo();
     private:
@@ -45,6 +42,8 @@ namespace App {
       bool UpdateTime();
       bool ForceTimeSync();
       void SendNtpRequest();
+      bool ShouldSyncNow(unsigned long tCurrentEpochUtc) const;
+      bool PersistLastSuccessfulSyncEpoch(unsigned long tEpochUtc);
       void FormatTwoDigits(char *tOutputBuffer, int tValue);
       bool IsLeapYear(unsigned long tYear);
       bool IsDST(unsigned long tEpoch);

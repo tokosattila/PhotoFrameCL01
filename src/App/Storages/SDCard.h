@@ -5,8 +5,6 @@
 
 namespace App {
 
-  using FSDCardCallback = FDefaultCallback;
-
   class SDCard_ {
     DEFINE_TAG("SDC");
     friend class AutoGuard<SDCard_>;
@@ -15,10 +13,7 @@ namespace App {
       static SDCard_ &Instance();
       bool Init(bool tVerbose = false);
       void ReloadConfig();
-      void Callback(FSDCardCallback tCallback);
       bool IsMounted();
-      const char *GetName() const { return "SDCard"; }
-      EFileSystemType GetType() const { return EFileSystemType::SDCard; }
       File OpenFile(const char *tPath, const char *tMode = FILE_READ, bool tCreate = false);
       const char *ReadFile(const char *tPath, const char *tMode = FILE_READ);
       bool WriteFile(const char *tPath, const char *tData, bool tVerbose = false);
@@ -29,10 +24,10 @@ namespace App {
       static const char *NormalizePath(const char *tPath);
       static const char *GetFileName(const char *tPath);
       const char *ListDir(const char *tPath = "/");
-      const char *CatFile(const char *tPath);
       const char *GetNextFile();
       const char *GetNextFile(const char *tCurrentFilename, const char *tDir = IMAGES_DIR, const char *tExt = ".jpg");
       static std::vector<const char *> GetFilesInDir(const char *tDir, const char *tExt);
+      static void InvalidateFileCache();
       void BootstrapVault(bool tVerbose = false);
       void PrintListDir();
       void End();
@@ -48,15 +43,14 @@ namespace App {
       ~SDCard_();
       bool mMounted = false;
       mutable SemaphoreHandle_t mMutex = nullptr;
-      FSDCardCallback mCallback = nullptr;
       SAppConfig mCfg {};
-      const uint8_t mSckPin = SD_SCK_PIN;
-      const uint8_t mMisoPin = SD_MISO_PIN;
-      const uint8_t mMosiPin = SD_MOSI_PIN;
-      const uint8_t mCsPin = SD_CS_PIN;
-      const uint32_t mSpiSpeed = 4000000;
-      const char *mMountPoint = "/sdc";
-      const uint8_t mMaxFiles = 10;
+      static constexpr uint8_t kSckPin = SD_SCK_PIN;
+      static constexpr uint8_t kMisoPin = SD_MISO_PIN;
+      static constexpr uint8_t kMosiPin = SD_MOSI_PIN;
+      static constexpr uint8_t kCsPin = SD_CS_PIN;
+      static constexpr uint32_t kSpiSpeed = 4000000;
+      static constexpr const char *kMountPoint = "/sdc";
+      static constexpr uint8_t kMaxFiles = 10;
       static char mReadBuffer[4096];
       static bool mReadValid;
       static char mListBuffer[4096];

@@ -29,28 +29,35 @@ namespace App {
 
   bool Storage_::Init(bool tVerbose) {
     Guard tLock;
+    mCfg = CFG.Get<SAppConfig>();
     TryInitLittleFS(false);
     TryInitSDCard(false);
     SelectActiveStorage(tVerbose);
     if (tVerbose && mMounted) {
-      if (mActiveType == EFileSystemType::SDCard) SDC.BootstrapVault(true);
-      else LFS.BootstrapVault(true);
+      if (mSDCardAvailable) SDC.BootstrapVault(true);
+      if (mLittleFSAvailable) LFS.BootstrapVault(true);
       char tUsedBuffer[16], tTotalBuffer[16];
       UTL.ByteToReadableSize(UsedBytes(), tUsedBuffer, sizeof(tUsedBuffer));
       UTL.ByteToReadableSize(TotalBytes(), tTotalBuffer, sizeof(tTotalBuffer));
-      xLOG("%s: %s / %s %s", GetActiveName(), tUsedBuffer, tTotalBuffer, mFallbackActive ? "(fallback)" : "");
+      xLOG("%s → %s / %s %s", GetActiveName(), tUsedBuffer, tTotalBuffer, mFallbackActive ? "(fallback)" : "");
       if (mSDCardAvailable && mActiveType != EFileSystemType::SDCard) {
         UTL.ByteToReadableSize(SDC.UsedBytes(), tUsedBuffer, sizeof(tUsedBuffer));
         UTL.ByteToReadableSize(SDC.TotalBytes(), tTotalBuffer, sizeof(tTotalBuffer));
-        xLOG("SDCard (secondary): %s / %s", tUsedBuffer, tTotalBuffer);
+        xLOG("SDCard [fallback] → %s / %s", tUsedBuffer, tTotalBuffer);
       }
       if (mLittleFSAvailable && mActiveType != EFileSystemType::LittleFS) {
         UTL.ByteToReadableSize(LFS.UsedBytes(), tUsedBuffer, sizeof(tUsedBuffer));
         UTL.ByteToReadableSize(LFS.TotalBytes(), tTotalBuffer, sizeof(tTotalBuffer));
-        xLOG("LittleFS (secondary): %s / %s", tUsedBuffer, tTotalBuffer);
+        xLOG("LittleFS [fallback] → %s / %s", tUsedBuffer, tTotalBuffer);
       }
     }
     return mMounted;
+  }
+
+  void Storage_::ReloadConfig() {
+    Guard tLock;
+    mCfg = CFG.Get<SAppConfig>();
+    SelectActiveStorage(false);
   }
 
   bool Storage_::TryInitSDCard(bool tVerbose) {
@@ -71,94 +78,70 @@ namespace App {
     return false;
   }
 
-  bool Storage_::HasImagesInDir(EFileSystemType tType) {
-    SDisplayConfig tCfg = CFG.Get<SDisplayConfig>();
-    char tImagesDir[64];
-    char tImageExt[16];
-    strncpy(tImagesDir, tCfg.ImagesDir.c_str(), sizeof(tImagesDir) - 1);
-    tImagesDir[sizeof(tImagesDir) - 1] = '\0';
-    strncpy(tImageExt, tCfg.ImageExt.c_str(), sizeof(tImageExt) - 1);
-    tImageExt[sizeof(tImageExt) - 1] = '\0';
-    if (tType == EFileSystemType::SDCard && mSDCardAvailable) {
-      auto tFiles = SDC.GetFilesInDir(tImagesDir, tImageExt);
-      return !tFiles.empty();
-    }
-    if (tType == EFileSystemType::LittleFS && mLittleFSAvailable) {
-      auto tFiles = LFS.GetFilesInDir(tImagesDir, tImageExt);
-      return !tFiles.empty();
-    }
+  bool Storage_::IsTypeAvailable(EFileSystemType tType) const {
+    if (tType == EFileSystemType::SDCard) return mSDCardAvailable;
+    return mLittleFSAvailable;
+  }
+
+  bool Storage_::EnsureImagesDir(EFileSystemType tType) {
+    char tDirPath[128] = "";
+    UTL.PrependSlash(mCfg.Display.ImagesDir.c_str(), tDirPath, sizeof(tDirPath));
+    if (tType == EFileSystemType::SDCard && mSDCardAvailable) return SDC.CreateDir(tDirPath);
+    if (tType == EFileSystemType::LittleFS && mLittleFSAvailable) return LFS.CreateDir(tDirPath);
     return false;
   }
 
+  bool Storage_::TryFormatAndRecover(EFileSystemType tType) {
+    if (tType != EFileSystemType::LittleFS || !mLittleFSAvailable) return false;
+    xLOG("Attempting LittleFS format recovery...");
+    if (!LFS.Format()) return false;
+    return EnsureImagesDir(EFileSystemType::LittleFS);
+  }
+
+  void Storage_::PersistStorageSwitch(EFileSystemType tType, bool tVerbose) {
+    mCfg.Storage.DefaultFileSystem = tType;
+    mCfg.Storage.FallbackEnabled = false;
+    CFG.SaveAllConfig(mCfg);
+    if (tVerbose) xLOG("Config persisted: default=%s, fallback=off", tType == EFileSystemType::SDCard ? "SDCard" : "LittleFS");
+  }
+
   void Storage_::SelectActiveStorage(bool tVerbose) {
+    EFileSystemType tPreferred = mCfg.Storage.DefaultFileSystem;
+    EFileSystemType tOther = (tPreferred == EFileSystemType::SDCard) ? EFileSystemType::LittleFS : EFileSystemType::SDCard;
+    const char *tPreferredName = (tPreferred == EFileSystemType::SDCard) ? "SDCard" : "LittleFS";
+    const char *tOtherName = (tOther == EFileSystemType::SDCard) ? "SDCard" : "LittleFS";
+    bool tPreferredOk = IsTypeAvailable(tPreferred);
+    bool tOtherOk = IsTypeAvailable(tOther);
+    const bool tFallbackEnabled = mCfg.Storage.FallbackEnabled;
     mFallbackActive = false;
-    if (DEFAULT_FILE_SYSTEM == EFileSystemType::SDCard) {
-      if (mSDCardAvailable) {
-        bool tHasImages = HasImagesInDir(EFileSystemType::SDCard);
-        if (tHasImages) {
-          mActiveType = EFileSystemType::SDCard;
-          mMounted = true;
-          if (tVerbose) xLOG("Active storage → SDCard");
-          return;
-        }
-        if (STORAGE_FALLBACK_ENABLED && mLittleFSAvailable && HasImagesInDir(EFileSystemType::LittleFS)) {
-          mActiveType = EFileSystemType::LittleFS;
-          mMounted = true;
-          mFallbackActive = true;
-          if (tVerbose) xLOG("SDCard → images folder empty, smart fallback to LittleFS");
-          return;
-        }
-        mActiveType = EFileSystemType::SDCard;
-        mMounted = true;
-        if (mLittleFSAvailable) {
-          if (tVerbose) xLOG("Active storage → SDCard (no images on either storage)");
-        } else {
-          if (tVerbose) xLOG("Active storage → SDCard (images empty, LittleFS not available)");
-        }
-        return;
-      }
-      if (STORAGE_FALLBACK_ENABLED && mLittleFSAvailable) {
-        mActiveType = EFileSystemType::LittleFS;
-        mMounted = true;
-        mFallbackActive = true;
-        if (tVerbose) xLOG("SDCard → not available, fallback to LittleFS");
-        return;
-      }
-    } else {
-      if (mLittleFSAvailable) {
-        bool tHasImages = HasImagesInDir(EFileSystemType::LittleFS);
-        if (tHasImages) {
-          mActiveType = EFileSystemType::LittleFS;
-          mMounted = true;
-          if (tVerbose) xLOG("Active storage → LittleFS");
-          return;
-        }
-        if (STORAGE_FALLBACK_ENABLED && mSDCardAvailable && HasImagesInDir(EFileSystemType::SDCard)) {
-          mActiveType = EFileSystemType::SDCard;
-          mMounted = true;
-          mFallbackActive = true;
-          if (tVerbose) xLOG("LittleFS → images folder empty, smart fallback to SDCard");
-          return;
-        }
-        mActiveType = EFileSystemType::LittleFS;
-        mMounted = true;
-        if (mSDCardAvailable) {
-          if (tVerbose) xLOG("Active storage → LittleFS (no images on either storage)");
-        } else {
-          if (tVerbose) xLOG("Active storage → LittleFS (images empty, SDCard not available)");
-        }
-        return;
-      }
-      if (STORAGE_FALLBACK_ENABLED && mSDCardAvailable) {
-        mActiveType = EFileSystemType::SDCard;
-        mMounted = true;
-        mFallbackActive = true;
-        if (tVerbose) xLOG("LittleFS → not available, fallback to SDCard");
-        return;
-      }
+    if (tPreferredOk && EnsureImagesDir(tPreferred)) {
+      mActiveType = tPreferred;
+      mMounted = true;
+      if (tVerbose) xLOG("Active storage → %s", tPreferredName);
+      return;
+    }
+    if (tPreferredOk && TryFormatAndRecover(tPreferred)) {
+      mActiveType = tPreferred;
+      mMounted = true;
+      if (tVerbose) xLOG("Active storage → %s (recovered after format)", tPreferredName);
+      return;
+    }
+    if (tFallbackEnabled && tOtherOk && EnsureImagesDir(tOther)) {
+      mActiveType = tOther;
+      mMounted = true;
+      mFallbackActive = true;
+      if (tVerbose) xLOG("Active storage → %s (fallback from %s)", tOtherName, tPreferredName);
+      return;
+    }
+    if (tFallbackEnabled && tOtherOk && TryFormatAndRecover(tOther)) {
+      mActiveType = tOther;
+      mMounted = true;
+      mFallbackActive = true;
+      if (tVerbose) xLOG("Active storage → %s (fallback recovery from %s)", tOtherName, tPreferredName);
+      return;
     }
     mMounted = false;
-    if (tVerbose) xLOG("No storage available");
+    if (tVerbose) xLOG("No usable storage available");
   }
 
   void Storage_::End() {
@@ -220,17 +203,6 @@ namespace App {
     if (mActiveType == EFileSystemType::SDCard) return SDC.GetNextFile(tCurrentFile);
     return LFS.GetNextFile(tCurrentFile);
   }
-  bool Storage_::MakeDir(const char *tPath) {
-    if (!mMounted) return false;
-    if (mActiveType == EFileSystemType::SDCard) return SDC.CreateDir(tPath);
-    return LFS.CreateDir(tPath);
-  }
-
-  bool Storage_::RemoveDir(const char *tPath) {
-    if (!mMounted) return false;
-    if (mActiveType == EFileSystemType::SDCard) return SDC.DeleteDir(tPath);
-    return LFS.DeleteDir(tPath);
-  }
 
   bool Storage_::Exists(const char *tPath) {
     if (!mMounted) return false;
@@ -254,12 +226,6 @@ namespace App {
     if (!mMounted) return 0;
     if (mActiveType == EFileSystemType::SDCard) return SDC.UsedBytes();
     return LFS.UsedBytes();
-  }
-
-  const char *Storage_::CatFile(const char *tPath) {
-    if (!mMounted) return "";
-    if (mActiveType == EFileSystemType::SDCard) return SDC.CatFile(tPath);
-    return LFS.CatFile(tPath);
   }
 
 }

@@ -40,6 +40,33 @@
 				"kind": "test",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "Dashboard JS Guard",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\check_dashboard_js_style.ps1"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Dashboard JS Guard (Strict)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\check_dashboard_js_style.ps1",
+				"-Strict"
+			],
+			"problemMatcher": []
 		}
 	]
 }

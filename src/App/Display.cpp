@@ -36,14 +36,14 @@ namespace App {
     }
     EPaperDriver_::Init();
     mFrameBuffer = static_cast<uint8_t*>(heap_caps_calloc(mCfg.Width * mCfg.Height / 2, 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!mFrameBuffer) xLOG("Display → allocation PS memory failed");
+    if (!mFrameBuffer) xLOG("Allocation PS memory failed");
     EPaperDriver_::NewImage(mFrameBuffer, static_cast<uint16_t>(mCfg.Width), static_cast<uint16_t>(mCfg.Height), static_cast<uint16_t>(mDisplayRotate), static_cast<uint16_t>(EDisplayColor::White));
     EPaperDriver_::SetScale(6);
     SetFont(&OpenSans13B);
     SetBgColor(EDisplayColor::White);
     SetColor(EDisplayColor::Black);
     EPaperDriver_::ClearImage(static_cast<uint16_t>(mBgColor));
-    xLOG("Display → init successful");
+    xLOG("Display init successful");
   }
 
   void Display_::ReloadConfig() {
@@ -123,35 +123,6 @@ namespace App {
     return (tX % 2 == 0) ? ((tByte >> 4) & 0x0F) : (tByte & 0x0F);
   }
 
-  STextBounds Display_::MeasureGfxTextBounds(const GFXfont *tFont, const char *tText) {
-    STextBounds tBounds {};
-    if (!tFont || !tText || !tText[0]) return tBounds;
-    int32_t tCursor = 0;
-    int32_t tMinX = INT32_MAX;
-    int32_t tMinY = INT32_MAX;
-    int32_t tMaxX = INT32_MIN;
-    int32_t tMaxY = INT32_MIN;
-    for (const char *tPtr = tText; *tPtr; tPtr++) {
-      const GFXglyph *tGlyph = FindGlyphForCodePoint(tFont, static_cast<uint8_t>(*tPtr));
-      if (!tGlyph) continue;
-      int32_t tGlyphX1 = tCursor + tGlyph->XOffset;
-      int32_t tGlyphY1 = -static_cast<int32_t>(tGlyph->YOffset);
-      int32_t tGlyphX2 = tGlyphX1 + tGlyph->Width;
-      int32_t tGlyphY2 = tGlyphY1 + tGlyph->Height;
-      tMinX = std::min(tMinX, tGlyphX1);
-      tMinY = std::min(tMinY, tGlyphY1);
-      tMaxX = std::max(tMaxX, tGlyphX2);
-      tMaxY = std::max(tMaxY, tGlyphY2);
-      tCursor += tGlyph->XAdvance;
-    }
-    if (tMinX == INT32_MAX) return tBounds;
-    tBounds.X = tMinX;
-    tBounds.Y = tMinY;
-    tBounds.Width = std::max(0, tMaxX - tMinX);
-    tBounds.Height = std::max(0, tMaxY - tMinY);
-    return tBounds;
-  }
-
   uint8_t Display_::NormalizeToSpectra6Color(uint8_t tColor) {
     switch (tColor) {
       case EpaperColorBlack:
@@ -167,9 +138,9 @@ namespace App {
   }
 
   void Display_::EnsureJpgToneLut() {
-    uint8_t tBrightness = mCfg.JpgBrightness.Get();
-    uint8_t tContrast = mCfg.JpgContrast.Get();
-    uint8_t tGamma = mCfg.JpgGamma.Get();
+    uint8_t tBrightness = mCfg.JpgBrightness;
+    uint8_t tContrast = mCfg.JpgContrast;
+    uint8_t tGamma = mCfg.JpgGamma;
     if (mJpgToneLutReady && tBrightness == mJpgToneLutBrightness && tContrast == mJpgToneLutContrast && tGamma == mJpgToneLutGamma) {
       return;
     }
@@ -268,17 +239,20 @@ namespace App {
 
   void Display_::SetRotate(EDisplayRotate tRotate) {
     Guard tLock;
+    EDisplayRotate tResolvedRotate = static_cast<EDisplayRotate>(0);
     switch (tRotate) {
       case EDisplayRotate::Rotate0:
       case EDisplayRotate::Rotate90:
       case EDisplayRotate::Rotate180:
       case EDisplayRotate::Rotate270:
-        mDisplayRotate = tRotate;
+        tResolvedRotate = tRotate;
         break;
       default:
-        mDisplayRotate = static_cast<EDisplayRotate>(0);
+        tResolvedRotate = static_cast<EDisplayRotate>(0);
         break;
     }
+    if (mDisplayRotate == tResolvedRotate) return;
+    mDisplayRotate = tResolvedRotate;
     EPaperDriver_::SetRotate(static_cast<uint16_t>(mDisplayRotate));
   }
 
@@ -394,9 +368,7 @@ namespace App {
         tOriginOffsetX = -tMinX;
         tOriginOffsetY = -tMinY;
       }
-    } else {
-      return STextBounds {};
-    }
+    } else return STextBounds {};
     int32_t tCursorX = tX;
     int32_t tCursorY = tY;
     if (tX == 0 && tHAlignment == EDisplayHAlignment::Center) tCursorX = tCanvasWidth / 2;
@@ -521,7 +493,7 @@ namespace App {
       }
     }
     if (tInvalidColorCount > 0) {
-      xLOG("Display → normalized %lu invalid color nibble(s) to Spectra6 palette", static_cast<unsigned long>(tInvalidColorCount));
+      xLOG("Normalized %lu invalid color nibble(s) to Spectra6 palette", static_cast<unsigned long>(tInvalidColorCount));
     }
   }
 
@@ -670,13 +642,64 @@ namespace App {
   }
     
   void Display_::Update() {
-    Guard tLock;
-    if (!mFrameBuffer) return;
-    xLOG("Display → update start");
+    struct SDisplayUpdateTaskData {
+      uint8_t *FrameBuffer = nullptr;
+      SemaphoreHandle_t Done = nullptr;
+      bool Success = false;
+    };
+    uint8_t *tFrameBuffer = nullptr;
+    {
+      Guard tLock;
+      if (!mFrameBuffer) return;
+      tFrameBuffer = mFrameBuffer;
+    }
+    xLOG("Display update start");
     uint32_t tStartMs = millis();
-    EPaperDriver_::Display(mFrameBuffer);
+    SemaphoreHandle_t tDoneSemaphore = xSemaphoreCreateBinary();
+    if (!tDoneSemaphore) {
+      xLOG("Display update failed: semaphore alloc failed");
+      return;
+    }
+    SDisplayUpdateTaskData *tTaskData = new SDisplayUpdateTaskData{};
+    if (!tTaskData) {
+      vSemaphoreDelete(tDoneSemaphore);
+      xLOG("Display update failed: task data alloc failed");
+      return;
+    }
+    tTaskData->FrameBuffer = tFrameBuffer;
+    tTaskData->Done = tDoneSemaphore;
+    BaseType_t tCreateResult = xTaskCreate([](void *tParameter) {
+      SDisplayUpdateTaskData *tData = static_cast<SDisplayUpdateTaskData*>(tParameter);
+      if (tData && tData->FrameBuffer) {
+        EPaperDriver_::Display(tData->FrameBuffer);
+        tData->Success = true;
+      }
+      if (tData && tData->Done) xSemaphoreGive(tData->Done);
+      vTaskDelete(nullptr);
+    }, "DisplayUpd", 4096, tTaskData, 5, nullptr);
+    if (tCreateResult != pdPASS) {
+      vSemaphoreDelete(tDoneSemaphore);
+      delete tTaskData;
+      xLOG("Display update failed: task create failed");
+      return;
+    }
+    constexpr TickType_t kDisplayUpdateTimeoutTicks = pdMS_TO_TICKS(65000);
+    bool tCompleted = (xSemaphoreTake(tDoneSemaphore, kDisplayUpdateTimeoutTicks) == pdTRUE);
+    bool tSuccess = tCompleted && tTaskData->Success;
+    if (tCompleted) {
+      vSemaphoreDelete(tDoneSemaphore);
+      delete tTaskData;
+    }
     uint32_t tElapsedMs = millis() - tStartMs;
-    xLOG("Display → update end (%lu.%03lus)", static_cast<unsigned long>(tElapsedMs / 1000), static_cast<unsigned long>(tElapsedMs % 1000));
+    if (!tCompleted) {
+      xLOG("Display update timeout after %lu.%03lus", static_cast<unsigned long>(tElapsedMs / 1000), static_cast<unsigned long>(tElapsedMs % 1000));
+      return;
+    }
+    if (!tSuccess) {
+      xLOG("Display update failed after %lu.%03lus", static_cast<unsigned long>(tElapsedMs / 1000), static_cast<unsigned long>(tElapsedMs % 1000));
+      return;
+    }
+    xLOG("Display update end → %lu.%03lus", static_cast<unsigned long>(tElapsedMs / 1000), static_cast<unsigned long>(tElapsedMs % 1000));
   }
 
   void Display_::ClearArea(int32_t tX, int32_t tY, int32_t tWidth, int32_t tHeight) {

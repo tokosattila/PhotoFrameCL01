@@ -13,10 +13,7 @@ namespace App {
       static LittleFS_ &Instance();
       bool Init(bool tVerbose = false);
       void ReloadConfig();
-      void Callback(FConnectionCallback tCallback);
       bool IsMounted();
-      const char *GetName() const { return "LittleFS"; }
-      EFileSystemType GetType() const { return EFileSystemType::LittleFS; }
       File OpenFile(const char *tPath, const char *tMode = FILE_READ, bool tCreate = false);
       const char *ReadFile(const char *tPath, const char *tMode = FILE_READ);
       bool WriteFile(const char *tPath, const char *tData, bool tVerbose = false);
@@ -27,11 +24,12 @@ namespace App {
       static const char *NormalizePath(const char *tPath);
       static const char *GetFileName(const char *tPath);
       const char *ListDir(const char *tPath = "/");
-      const char *CatFile(const char *tPath);
       const char *GetNextFile();
       const char *GetNextFile(const char *tCurrentFilename, const char *tDir = IMAGES_DIR, const char *tExt = ".jpg");
       static std::vector<const char*> GetFilesInDir(const char *tDir, const char *tExt);
+      static void InvalidateFileCache();
       void BootstrapVault(bool tVerbose = false);
+      bool Format();
       void PrintListDir();
       void End();
       size_t GetListPos() { return mListPos; };
@@ -43,11 +41,10 @@ namespace App {
       LittleFS_ &operator=(const LittleFS_&) = delete;
       ~LittleFS_();
       mutable SemaphoreHandle_t mMutex = nullptr;
-      FConnectionCallback mCallback = nullptr;
       SAppConfig mCfg {};
-      const char *mMountLabel = "/lfs";
-      const char *mPartLabel = "littlefs";
-      static const uint8_t mMaxFiles = 10;
+      static constexpr const char *kMountLabel = "/lfs";
+      static constexpr const char *kPartLabel = "littlefs";
+      static constexpr uint8_t kMaxFiles = 10;
       static char mReadBuffer[4096];
       static bool mReadValid;
       static char mListBuffer[4096];

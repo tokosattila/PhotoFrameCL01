@@ -1,0 +1,14 @@
+#ifndef DASHBOARD_JS_LOGIN_H
+#define DASHBOARD_JS_LOGIN_H
+
+#include <App/Global.h>
+
+namespace App {
+  namespace DashboardJs {
+    const char Login[] PROGMEM = R"JS(
+"use strict";(function(){var tUtils=window.AppCoreUtils;function Init(){var tApp=window.AppCore||window.AppPlugin;if(tApp)tApp.InitCommonFormUi();var tForm=document.querySelector("[data-login-form]");if(tApp&&typeof tApp.WriteSessionToken==="function")tApp.WriteSessionToken("");if(!tForm)return;tForm.addEventListener("submit",async function(e){e.preventDefault();var tBtn=tForm.querySelector('button[type="submit"]');if(tBtn){tBtn.disabled=true;tBtn.classList.add("button-loading")}try{var tNameInput=tForm.querySelector('input[name="name"], input[name="username"]');var tPasswordInput=tForm.querySelector('input[name="password"]');var tRedirectFromQuery="";try{tRedirectFromQuery=String(new URLSearchParams(location.search).get("redirect")||"").trim()}catch{}var tBody=new URLSearchParams;tBody.set("name",tNameInput?String(tNameInput.value||"").trim():"");tBody.set("password",tPasswordInput?String(tPasswordInput.value||""):"");if(tRedirectFromQuery)tBody.set("redirect",tRedirectFromQuery);var tResponse=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:tBody.toString(),credentials:"same-origin"});var tPayload=null;try{tPayload=await tResponse.clone().json()}catch{}var tIsError=!tResponse.ok||tUtils.IsPlainObject(tPayload)&&(tPayload.ok===false||tPayload.error===true);if(tIsError){if(tApp&&typeof tApp.WriteSessionToken==="function")tApp.WriteSessionToken("");if(tApp)tApp.ProcessUiMessagePayload(tPayload||{},{defaultType:"error_message",defaultMessage:"invalid_login",Data:{target:tForm}});return}if(tApp&&typeof tApp.WriteSessionToken==="function")tApp.WriteSessionToken(tUtils.IsPlainObject(tPayload)?String(tPayload.token||""):"");if(tUtils.IsPlainObject(tPayload)&&tApp)tApp.ProcessUiMessagePayload(tPayload,{defaultType:"info_message",Data:{target:tForm}});var tRedirect=tUtils.IsPlainObject(tPayload)?String(tPayload.RedirectUrl||tPayload.Redirect||tPayload.Url||"").trim():"";var tFinalRedirect=tRedirect||tRedirectFromQuery||"/index.html";location.href=tApp&&typeof tApp.BuildAuthorizedUrl==="function"?tApp.BuildAuthorizedUrl(tFinalRedirect):tFinalRedirect}catch{if(tApp&&typeof tApp.WriteSessionToken==="function")tApp.WriteSessionToken("");if(tApp)tApp.ProcessUiMessagePayload({},{defaultType:"error_message",defaultMessage:"invalid_login",Data:{target:tForm}})}finally{if(tBtn){tBtn.disabled=false;tBtn.classList.remove("button-loading")}}})}window.AppPageRegistry.Register(["login"],{Init:Init})})();
+)JS";
+  }
+}
+
+#endif

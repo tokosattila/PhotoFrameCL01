@@ -1,0 +1,14 @@
+#ifndef DASHBOARD_JS_LANGUAGE_H
+#define DASHBOARD_JS_LANGUAGE_H
+
+#include <App/Global.h>
+
+namespace App {
+  namespace DashboardJs {
+    const char Language[] PROGMEM = R"JS(
+"use strict";(function(){var tUtils=window.AppCoreUtils;function Init(){var tApp=window.AppCore||window.AppPlugin;if(tApp)tApp.InitCommonFormUi();var tForm=document.querySelector("[data-language-form]");if(!tForm)return;var tSelect=tForm.querySelector('select[name="language"]');async function RefreshPageData(){if(!tApp||typeof tApp.LoadPageData!=="function")return;if(typeof tApp.InvalidatePageData==="function")tApp.InvalidatePageData();await tApp.LoadPageData(true)}function ApplyPageConfig(){var tData=tApp&&typeof tApp.GetPageSection==="function"?tApp.GetPageSection("Data"):{};var tDashboard=tUtils.IsPlainObject(tData)&&tUtils.IsPlainObject(tData.Dashboard)?tData.Dashboard:{};if(!tUtils.IsPlainObject(tDashboard)||!tSelect)return;var tAllowed=Array.isArray(tDashboard.EnabledLanguages)?tDashboard.EnabledLanguages.map(function(tCode){return String(tCode||"").trim().toLowerCase()}).filter(Boolean):["en","hu"];Array.from(tSelect.options).forEach(function(tOption){var tCode=String(tOption.value||"").trim().toLowerCase();var tEnabled=tAllowed.indexOf(tCode)>=0;tOption.hidden=!tEnabled;tOption.disabled=!tEnabled});var tLanguage=String(tDashboard.Language||tSelect.value||"en").trim().toLowerCase();if(tAllowed.indexOf(tLanguage)>=0)tSelect.value=tLanguage;tSelect.dispatchEvent(new Event("input",{bubbles:true}));if(tApp)tApp.InitCommonFormUi()}ApplyPageConfig();tForm.addEventListener("submit",async function(e){e.preventDefault();var tBtn=tForm.querySelector('button[type="submit"]');if(tBtn){tBtn.disabled=true;tBtn.classList.add("button-loading")}try{var tBody=new URLSearchParams;if(tSelect)tBody.set("language[default]",tSelect.value);var tResponse=await tApp.ApiPost("/api/language/save",tBody.toString());if(!tUtils.IsPlainObject(tResponse)||tResponse.ok===false||tResponse.error===true){tApp.ProcessUiMessagePayload(tResponse,{defaultType:"error_message",defaultMessage:"language_save_error",Data:{target:tForm}});return}tApp.ProcessUiMessagePayload(tResponse,{defaultType:"info_message",defaultMessage:"language_save_success",Data:{target:tForm}});await RefreshPageData();ApplyPageConfig()}catch{if(tApp&&tApp.Notification)tApp.Notification(tApp.TranslateMessage("language_save_error"),true,"danger")}finally{if(tBtn){tBtn.disabled=false;tBtn.classList.remove("button-loading")}}});document.addEventListener("lang-applied",function(){if(tApp)tApp.InitCommonFormUi()});document.addEventListener("page-data:updated",function(){ApplyPageConfig()})}window.AppPageRegistry.Register(["language"],{Init:Init})})();
+)JS";
+  }
+}
+
+#endif

@@ -14,7 +14,6 @@ namespace App {
       void AddPin(uint8_t tPin, const char *tMessage = "", bool tActiveHigh = false);
       void On(uint8_t tPin);
       void Off(uint8_t tPin);
-      bool IsOn(uint8_t tPin) const;
     private:
       Led_();
       ~Led_();

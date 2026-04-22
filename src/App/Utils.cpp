@@ -48,115 +48,8 @@ namespace App {
     return static_cast<uint32_t>(tVal);
   }
 
-  bool Utils_::IsSD(const char *tTarget) {
-    return strcasecmp(tTarget, "sd") == 0 || strcasecmp(tTarget, "sdcard") == 0;
-  }
-  
-  bool Utils_::IsLFS(const char *tTarget) {
-    return strcasecmp(tTarget, "lfs") == 0 || strcasecmp(tTarget, "littlefs") == 0;
-  }
-
-  bool Utils_::IsValidTarget(const char *tTarget) {
-    return IsSD(tTarget) || IsLFS(tTarget);
-  }
-
-  bool Utils_::IsSameTarget(const char *tA, const char *tB) {
-    return (IsSD(tA) && IsSD(tB)) || (IsLFS(tA) && IsLFS(tB));
-  }
-
-  bool Utils_::GlobMatch(const char *tPattern, const char *tText) {
-    while (*tPattern) {
-      if (*tPattern == '*') {
-        ++tPattern;
-        if (!*tPattern) return true;
-        while (*tText) {
-          if (GlobMatch(tPattern, tText)) return true;
-          ++tText;
-        }
-        return false;
-      }
-      if (tolower((unsigned char)*tPattern) != tolower((unsigned char)*tText)) return false;
-      ++tPattern;
-      ++tText;
-    }
-    return *tText == '\0';
-  }
-
-  bool Utils_::SplitPathAndFile(const char *tSpec, char *tDir, size_t tDirSize, char *tFile, size_t tFileSize) {
-    if (!tSpec || *tSpec == '\0') return false;
-    const char *tEnd = tSpec + strlen(tSpec);
-    while (tEnd > tSpec && (*(tEnd - 1) == ' ' || *(tEnd - 1) == '\t')) --tEnd;
-    if (tEnd <= tSpec) return false;
-    if (*tSpec == '/') {
-      const char *tLastSlash = tSpec;
-      for (const char *tC = tSpec + 1; tC < tEnd; ++tC) {
-        if (*tC == '/') tLastSlash = tC;
-      }
-      const char *tAfter = tLastSlash + 1;
-      size_t tAfterLen = tEnd - tAfter;
-      if (tAfterLen == 0) return false;
-      size_t tDirLen = tLastSlash - tSpec;
-      if (tDirLen == 0) {
-        tDir[0] = '/';
-        tDir[1] = '\0';
-      } else {
-        if (tDirLen >= tDirSize) tDirLen = tDirSize - 1;
-        strncpy(tDir, tSpec, tDirLen);
-        tDir[tDirLen] = '\0';
-      }
-      if (tAfterLen >= tFileSize) tAfterLen = tFileSize - 1;
-      strncpy(tFile, tAfter, tAfterLen);
-      tFile[tAfterLen] = '\0';
-    } else {
-      snprintf(tDir, tDirSize, "/%s", IMAGES_DIR);
-      size_t tLen = tEnd - tSpec;
-      if (tLen >= tFileSize) tLen = tFileSize - 1;
-      strncpy(tFile, tSpec, tLen);
-      tFile[tLen] = '\0';
-    }
-    return tFile[0] != '\0';
-  }
-
-  void Utils_::CollectMatchingFiles(const char *tDir, const char *tPattern, bool tIsSD, std::vector<String> &tFiles) {
-    File tRoot = tIsSD ? SD.open(tDir) : LittleFS.open(tDir);
-    if (!tRoot || !tRoot.isDirectory()) return;
-    File tEntry = tRoot.openNextFile();
-    while (tEntry) {
-      if (!tEntry.isDirectory()) {
-        const char *tName = tEntry.name();
-        const char *tSlash = strrchr(tName, '/');
-        if (tSlash) tName = tSlash + 1;
-        if (GlobMatch(tPattern, tName)) tFiles.push_back(String(tName));
-      }
-      tEntry = tRoot.openNextFile();
-    }
-    tRoot.close();
-  }
-
-  void Utils_::ResolveFileSpec(const char *tDir, const char *tSpec, bool tIsSD, std::vector<String> &tFiles) {
-    bool tHasGlob = (strchr(tSpec, '*') != nullptr);
-    bool tHasComma = (strchr(tSpec, ',') != nullptr);
-    if (!tHasGlob && !tHasComma) {
-      tFiles.push_back(String(tSpec));
-      return;
-    }
-    if (tHasComma) {
-      char tBuf[256] = "";
-      strncpy(tBuf, tSpec, sizeof(tBuf) - 1);
-      char *tToken = strtok(tBuf, ",");
-      while (tToken) {
-        while (*tToken == ' ') ++tToken;
-        if (*tToken != '\0') {
-          char *tE = tToken + strlen(tToken) - 1;
-          while (tE > tToken && *tE == ' ') *tE-- = '\0';
-          if (strchr(tToken, '*')) CollectMatchingFiles(tDir, tToken, tIsSD, tFiles);
-          else tFiles.push_back(String(tToken));
-        }
-        tToken = strtok(nullptr, ",");
-      }
-      return;
-    }
-    CollectMatchingFiles(tDir, tSpec, tIsSD, tFiles);
+  bool Utils_::HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs) {
+    return static_cast<uint32_t>(tNowMs - tStartMs) >= tDelayMs;
   }
 
   void Utils_::Init() {
@@ -185,13 +78,13 @@ namespace App {
       if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) esp_bt_controller_deinit();
       esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
     }
-    xLOG("Bluetooth → disabled");
+    xLOG("Bluetooth disabled");
   }
 
   void Utils_::DisableBrownout() {
     Guard tLock;
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-    xLOG("Brownout detector → disabled");
+    xLOG("Brownout detector disabled");
   }
 
   void Utils_::ByteToReadableSize(uint64_t tBytes, char *tBuffer, size_t tLength) {
@@ -220,7 +113,8 @@ namespace App {
       return tBuffer;
     }
     if (tAsDateTime) {
-      time_t tTime = (time_t)(tEpoch + (unsigned long)mCfg.Ntp.GMTOffset);
+      const long tOffset = mCfg.Ntp.GMTOffset + mCfg.Ntp.DaylightOffset;
+      time_t tTime = static_cast<time_t>(static_cast<long>(tEpoch) + tOffset);
       struct tm tTm;
       gmtime_r(&tTime, &tTm);
       snprintf(tBuffer, tLength, "%04d.%02d.%02d %02d:%02d:%02d", tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_hour, tTm.tm_min, tTm.tm_sec);
@@ -417,16 +311,6 @@ namespace App {
     PrintInfo(tText);
   }
 
-  void Utils_::PrintPSRamInfo() {
-    char tText[mPrintInfoWidth - 4] = "";
-    uint32_t tTotalPsram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-    char tTotalPsramBuffer[16] = "";
-    ByteToReadableSize(tTotalPsram, tTotalPsramBuffer, sizeof(tTotalPsramBuffer));
-    PrintInfo("PSRAM INFO", EUtilsInfoType::Title);
-    snprintf(tText, sizeof(tText), "Size: %s", tTotalPsramBuffer);
-    PrintInfo(tText);
-  }
-
   void Utils_::PrintPSRamUsageInfo() {
     char tText[27] = "";
     uint32_t tTotalPsram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
@@ -519,11 +403,6 @@ namespace App {
     PrintInfo(tText);
   }
 
-  void Utils_::PrintDateTime() {
-    char tBuf[24];
-    xLOG("Date/Time → %s", EpochToReadableFormat(time(nullptr), true, tBuf, sizeof(tBuf)));
-  }
-
   const char *Utils_::PrependSlash(const char *tPath, char *tOutBuffer, size_t tBufSize) {
     if (!tPath || !tOutBuffer || tBufSize < 2) return tPath;
     size_t tLen = 0;
@@ -557,8 +436,9 @@ namespace App {
     uint32_t tEpochUtc = static_cast<uint32_t>(time(nullptr));
     if (tEpochUtc < 1735689600UL) tEpochUtc = static_cast<uint32_t>(RTC.GetEpoch());
     if (tEpochUtc < 1735689600UL) return SECONDS_PER_DAY;
-    unsigned long tLocalEpoch = static_cast<unsigned long>(tEpochUtc) + mCfg.Ntp.GMTOffset;
-    uint32_t tNowSec = static_cast<uint32_t>(tLocalEpoch % SECONDS_PER_DAY);
+    long tLocalEpoch = static_cast<long>(tEpochUtc) + mCfg.Ntp.GMTOffset + mCfg.Ntp.DaylightOffset;
+    if (tLocalEpoch < 0) tLocalEpoch = 0;
+    uint32_t tNowSec = static_cast<uint32_t>(static_cast<unsigned long>(tLocalEpoch) % SECONDS_PER_DAY);
     uint32_t tTargetSec = tTargetHour * SECONDS_PER_HOUR;
     if (tTargetSec <= tNowSec) tTargetSec += SECONDS_PER_DAY;
     return tTargetSec - tNowSec;
@@ -626,7 +506,7 @@ namespace App {
   }  
 
   void Utils_::SleepLowBattery() {
-    xLOG("Low battery → entering deep sleep..\n\n");
+    xLOG("Low battery entering deep sleep..\n\n");
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     esp_deep_sleep_start();
   }

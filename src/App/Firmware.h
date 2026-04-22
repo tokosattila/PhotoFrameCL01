@@ -13,29 +13,35 @@ namespace App {
       static Firmware_ &Instance();
       static void Lock();
       static void Unlock();
-      bool Init();
-      bool UpdateAvailable();
-      bool VerifySha256(const char *tShaPath = nullptr);
-      bool PerformUpdate(Stream *tLogStream = nullptr);
-      bool CleanupUpdateDirIfExists(Stream *tLogStream = nullptr);
-      bool CleanupUpdateDirOnBoot(Stream *tLogStream = nullptr);
-      const char *GetLastError() const;
+      bool IsActive() const { return mActive; }
+      bool HasError() const { return mError; }
+      bool IsFinalEventSent() const { return mFinalEventSent; }
+      size_t GetWritten() const { return mWritten; }
+      size_t GetTotal() const { return mTotal; }
+      uint32_t GetLastActivityMs() const { return mLastActivityMs; }
+      const char *GetLastMessage() const { return mLastMessage; }
+      void Begin(size_t tTotalSize);
+      void Write(uint8_t *tData, size_t tLength);
+      void Finalize();
+      void Abort();
+      void Reset();
     private:
       Firmware_();
       ~Firmware_();
       Firmware_(const Firmware_ &) = delete;
       Firmware_ &operator=(const Firmware_ &) = delete;
       mutable SemaphoreHandle_t mMutex = nullptr;
-      static constexpr size_t mUpdateBufferDefaultSize = 4096;
-      uint8_t *mUpdateBuffer = nullptr;
-      size_t mUpdateBufferSize = 0;
-      const char *mPath = FIRMWARE_PATH;
-      const char *mShaPath = FIRMWARE_SHA_PATH;
-      char mLastError[256] = "";
-      void SetError(const char *tErrorMessage);
-      bool EnsureUpdateBuffer();
-      bool CleanupUpdateDir(Stream *tLogStream);
-    };
+      bool mActive = false;
+      bool mError = false;
+      bool mFinalEventSent = false;
+      size_t mWritten = 0;
+      size_t mTotal = 0;
+      uint32_t mLastActivityMs = 0;
+      esp_partition_subtype_t mTargetSubtype = ESP_PARTITION_SUBTYPE_APP_FACTORY;
+      char mLastMessage[64] = {};
+      void Fail(const char *tLogMessage, const char *tMessage, bool tAbortUpdate);
+      bool TryActivateTargetPartitionFallback();
+  };
 
 }
 

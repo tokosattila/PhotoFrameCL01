@@ -2,6 +2,10 @@
 
 namespace App {
 
+  namespace {
+    constexpr uint8_t kI2CRetryCount = 3;
+  }
+
   Battery_ &Battery_::Instance() {
     static Battery_ tInstance;
     return tInstance;
@@ -28,24 +32,27 @@ namespace App {
 
   bool Battery_::Init(bool tVerbose) {
     Guard tLock;
-    mWire.begin(mSdaPin, mSclPin);
+    {
+      I2CBusGuard tBusLock;
+      Wire.begin(kSdaPin, kSclPin);
+    }
     mAvailable = TryI2C();
     if (!mAvailable) {
-      if (tVerbose) xLOG("Battery → no power outputs detected on I2C bus");
+      if (tVerbose) xLOG("Battery management is not available, no power outputs detected on I2C bus");
       return false;
     }
-    if (!EnablePowerOutputs()) {
-      if (tVerbose) xLOG("Battery → failed to enable power outputs");
+    if (!EnablePowerOutputs(tVerbose)) {
+      if (tVerbose) xLOG("Battery management is not available, failed to enable power outputs");
       mAvailable = false;
       return false;
     }
-    if (!EnableBatteryADC()) {
-      if (tVerbose) xLOG("Battery → failed to enable battery ADC");
+    if (!EnableBatteryADC(tVerbose)) {
+      if (tVerbose) xLOG("Battery management is not available, failed to enable battery ADC");
       mAvailable = false;
       return false;
     }
     if (tVerbose) {
-      xLOG("Battery → found AXP2101");
+      xLOG("Battery management is available, found AXP2101");
       PrintInfo();
     }
     return mAvailable;
@@ -53,28 +60,51 @@ namespace App {
 
   void Battery_::End() {
     Guard tLock;
-    mWire.end();
+    {
+      I2CBusGuard tBusLock;
+      Wire.end();
+    }
     mAvailable = false;
   }
 
   bool Battery_::TryI2C() {
-    mWire.beginTransmission(mAddress);
-    return (mWire.endTransmission() == 0);
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      if (Wire.endTransmission() == 0) return true;
+      vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+    }
+    return false;
   }
 
   bool Battery_::WriteRegister(uint8_t tReg, uint8_t tValue) {
-    mWire.beginTransmission(mAddress);
-    mWire.write(tReg);
-    mWire.write(tValue);
-    return (mWire.endTransmission() == 0);
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(tReg);
+      Wire.write(tValue);
+      if (Wire.endTransmission() == 0) return true;
+      vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+    }
+    return false;
   }
 
   int Battery_::ReadRegister(uint8_t tReg) {
-    mWire.beginTransmission(mAddress);
-    mWire.write(tReg);
-    if (mWire.endTransmission() != 0) return -1;
-    if (mWire.requestFrom(mAddress, (uint8_t)1) < 1) return -1;
-    return mWire.read();
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(tReg);
+      if (Wire.endTransmission() != 0) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      if (Wire.requestFrom(kAddress, (uint8_t)1) < 1) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      return Wire.read();
+    }
+    return -1;
   }
 
   bool Battery_::SetRegisterBit(uint8_t tReg, uint8_t tBit) {
@@ -83,18 +113,66 @@ namespace App {
     return WriteRegister(tReg, tValue | (1 << tBit));
   }
 
-  bool Battery_::EnablePowerOutputs() {
-    if (!WriteRegister(0x82, 0x12)) return false;
-    if (!SetRegisterBit(0x80, 0)) return false;
-    if (!WriteRegister(0x94, 0x1C)) return false;
-    if (!SetRegisterBit(0x90, 2)) return false;
-    if (!WriteRegister(0x95, 0x1C)) return false;
-    if (!SetRegisterBit(0x90, 3)) return false;
+  bool Battery_::EnablePowerOutputs(bool tVerbose) {
+    if (!WriteRegister(0x82, 0x12)) {
+      if (tVerbose) xLOG("AXP init fail write reg 0x82 = 0x12");
+      return false;
+    }
+    if (!SetRegisterBit(0x80, 0)) {
+      if (tVerbose) xLOG("AXP init fail set bit 0 on reg 0x80");
+      return false;
+    }
+    if (!WriteRegister(0x94, 0x1C)) {
+      if (tVerbose) xLOG("AXP init fail write reg 0x94 = 0x1C");
+      return false;
+    }
+    if (!SetRegisterBit(0x90, 2)) {
+      if (tVerbose) xLOG("AXP init fail set bit 2 on reg 0x90");
+      return false;
+    }
+    if (!WriteRegister(0x95, 0x1C)) {
+      if (tVerbose) xLOG("AXP init fail write reg 0x95 = 0x1C");
+      return false;
+    }
+    if (!SetRegisterBit(0x90, 3)) {
+      if (tVerbose) xLOG("AXP init fail set bit 3 on reg 0x90");
+      return false;
+    }
+    if (!WriteRegister(0x96, 0x1C)) {
+      if (tVerbose) xLOG("AXP init fail write reg 0x96 = 0x1C");
+      return false;
+    }
+    if (!SetRegisterBit(0x90, 4)) {
+      if (tVerbose) xLOG("AXP init fail set bit 4 on reg 0x90");
+      return false;
+    }
+    if (!WriteRegister(0x97, 0x1C)) {
+      if (tVerbose) xLOG("AXP init fail write reg 0x97 = 0x1C");
+      return false;
+    }
+    if (!SetRegisterBit(0x90, 5)) {
+      if (tVerbose) xLOG("AXP init fail set bit 5 on reg 0x90");
+      return false;
+    }
     return true;
   }
 
-  bool Battery_::EnableBatteryADC() {
-    return SetRegisterBit(0x30, 0);
+  bool Battery_::EnableBatteryADC(bool tVerbose) {
+    const uint8_t tAdcReg = 0x30;
+    int tCurrentValue = ReadRegister(tAdcReg);
+    if (tCurrentValue < 0) {
+      if (tVerbose) xLOG("AXP adc ctrl read fail reg 0x30, trying direct write 0x01");
+      if (!WriteRegister(tAdcReg, 0x01)) {
+        if (tVerbose) xLOG("AXP init fail write reg 0x30 = 0x01");
+        return false;
+      }
+      return true;
+    }
+    if (!WriteRegister(tAdcReg, static_cast<uint8_t>(tCurrentValue | (1 << 0)))) {
+      if (tVerbose) xLOG("AXP init fail set bit 0 on reg 0x30");
+      return false;
+    }
+    return true;
   }
 
   uint16_t Battery_::GetVoltage() {
@@ -103,7 +181,9 @@ namespace App {
     int tHigh = ReadRegister(0x34);
     int tLow = ReadRegister(0x35);
     if (tHigh < 0 || tLow < 0) return 0;
-    return ((tHigh & 0x1F) << 8) | tLow;
+    uint16_t tRawVoltage = static_cast<uint16_t>(((tHigh & 0x1F) << 8) | tLow);
+    if (tRawVoltage > 5000U) return static_cast<uint16_t>((tRawVoltage + 1U) / 2U);
+    return tRawVoltage;
   }
 
   uint8_t Battery_::GetPercentage() {
@@ -138,19 +218,17 @@ namespace App {
     return (tValue >> 3) & 0x01;
   }
 
-  EChargeState Battery_::GetChargeState() {
+  bool Battery_::IsLowBattery() {
     Guard tLock;
-    if (!mAvailable) return EChargeState::Stopped;
-    int tValue = ReadRegister(0x01);
-    if (tValue < 0) return EChargeState::Stopped;
-    uint8_t tState = tValue & 0x07;
-    if (tState <= 5) return static_cast<EChargeState>(tState);
-    return EChargeState::Stopped;
+    if (!IsBatteryConnected()) return false;
+    const uint16_t tVoltageMv = GetVoltage();
+    const uint8_t tPercent = GetPercentage();
+    return tVoltageMv > 0 && tVoltageMv < kLowBatteryVoltageMv && tPercent <= kLowBatteryPercent;
   }
 
   void Battery_::PrintInfo() {
     if (!IsBatteryConnected()) {
-      xLOG("Battery → no battery attached");
+      xLOG("No battery attached");
       return;
     }
     xLOG("Battery → %umV [%u%%] %s", GetVoltage(), GetPercentage(), IsCharging() ? "charging" : (IsDischarging() ? "discharging" : "standby"));

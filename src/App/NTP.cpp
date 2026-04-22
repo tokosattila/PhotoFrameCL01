@@ -39,11 +39,11 @@ namespace App {
   bool NTP_::IsAvailable() {
     wifi_mode_t tMode = WiFi.getMode();
     if (tMode == WIFI_AP || tMode == WIFI_OFF) {
-      xLOG("NTP → not available, WiFi in AP mode or OFF");
+      xLOG("NTP not available, WiFi in AP mode or OFF");
       return false;
     }
     if (WiFi.status() != WL_CONNECTED) {
-      xLOG("NTP → not available, WiFi not connected");
+      xLOG("NTP not available, WiFi not connected");
       return false;
     }
     return true;
@@ -81,8 +81,12 @@ namespace App {
 
   bool NTP_::UpdateTime() {
     if (!IsAvailable()) return false;
-    unsigned long tCurrentMillis = millis();
-    if (tCurrentMillis - mLastUpdate >= mCfg.UpdateInterval || mLastUpdate == 0) {
+    if (mLastUpdate == 0 || mCurrentEpoch == 0) {
+      if (!mUDPSetup && !Begin()) return false;
+      return ForceTimeSync();
+    }
+    const unsigned long tCurrentEpochUtc = mCurrentEpoch + ((millis() - mLastUpdate) / 1000UL);
+    if (ShouldSyncNow(tCurrentEpochUtc)) {
       if (!mUDPSetup && !Begin()) return false;
       return ForceTimeSync();
     }
@@ -102,7 +106,7 @@ namespace App {
         if (!IsPacketValid(mPacketBuffer)) tPacketSize = 0;
       }
       if (++tTimeoutCounter > 200) {
-        xLOG("NTP → timeout, no response");
+        xLOG("NTP timeout, no response");
         mCurrentEpoch = 0;
         return false;
       }
@@ -111,7 +115,7 @@ namespace App {
     unsigned long tNtpTime = (mPacketBuffer[40] << 24) | (mPacketBuffer[41] << 16) | (mPacketBuffer[42] <<  8) | mPacketBuffer[43];
     mCurrentEpoch = tNtpTime - mSevenZYYears;
     if (mCurrentEpoch < 1704067200UL) {
-      xLOG("NTP → invalid epoch received: %lu", mCurrentEpoch);
+      xLOG("Invalid epoch received → %lu", mCurrentEpoch);
       mCurrentEpoch = 0;
       return false;
     }
@@ -122,7 +126,26 @@ namespace App {
       .tv_usec = 0 
     };
     if (settimeofday(&tTv, nullptr) != 0) return false;
+    mCfg.LastSuccessfulSyncEpochUtc = mCurrentEpoch;
+    PersistLastSuccessfulSyncEpoch(mCurrentEpoch);
     return true;
+  }
+
+  bool NTP_::ShouldSyncNow(unsigned long tCurrentEpochUtc) const {
+    if (!mCfg.LowPowerSyncEnable) return false;
+    if (mCfg.LastSuccessfulSyncEpochUtc == 0) return true;
+    if (tCurrentEpochUtc < mCfg.LastSuccessfulSyncEpochUtc) return true;
+    const unsigned long tElapsedSec = tCurrentEpochUtc - mCfg.LastSuccessfulSyncEpochUtc;
+    return tElapsedSec >= mCfg.LowPowerSyncIntervalSec;
+  }
+
+  bool NTP_::PersistLastSuccessfulSyncEpoch(unsigned long tEpochUtc) {
+    SAppConfig tConfig = CFG.Get<SAppConfig>();
+    if (tConfig.Ntp.LastSuccessfulSyncEpochUtc == tEpochUtc) return true;
+    tConfig.Ntp.LastSuccessfulSyncEpochUtc = tEpochUtc;
+    const bool tSaved = CFG.SaveAllConfig(tConfig);
+    if (!tSaved) xLOG("Failed to persist last sync epoch");
+    return tSaved;
   }
 
   void NTP_::SendNtpRequest() {
@@ -143,10 +166,9 @@ namespace App {
     Guard tLock;
     unsigned long tBase = GetCurrentEpochUTC();
     if (tBase == 0) return 0;
-    unsigned long tOffset = mCfg.GMTOffset;
-    bool tDst = IsDST(tBase + tOffset);
-    if (tDst) tOffset += SECONDS_PER_HOUR;
-    return tBase + tOffset;
+    long tOffset = mCfg.GMTOffset + mCfg.DaylightOffset;
+    long tLocalEpoch = static_cast<long>(tBase) + tOffset;
+    return tLocalEpoch > 0 ? static_cast<unsigned long>(tLocalEpoch) : 0UL;
   }
 
   unsigned long NTP_::GetCurrentEpochUTC() {
@@ -154,10 +176,6 @@ namespace App {
     if (!UpdateTime()) return 0;
     if (mCurrentEpoch == 0) return 0;
     return mCurrentEpoch + ((millis() - mLastUpdate) / 1000UL);
-  }
-
-  unsigned long NTP_::EpochTime() {
-    return GetCurrentEpoch();
   }
 
   void NTP_::GetTime(char *tBuffer, uint8_t tLength, char tFormat) {
@@ -220,18 +238,6 @@ namespace App {
     }
   }
 
-  String NTP_::Time(char tFormat) {
-    char tTimeBuffer[9];
-    GetTime(tTimeBuffer, sizeof(tTimeBuffer), tFormat);
-    return String(tTimeBuffer); 
-  }
-
-  String NTP_::Date(char tFormat) {
-    char tDateBuffer[11];
-    GetDate(tDateBuffer, sizeof(tDateBuffer), tFormat);
-    return String(tDateBuffer); 
-  }
-
   void NTP_::FormatTwoDigits(char *tBuffer, int tValue) {
     if (tValue < 0) tValue = 0;
     if (tValue > 99) tValue = 99;
@@ -271,46 +277,31 @@ namespace App {
   bool NTP_::SyncSystemTime() {
     if (!mUDPSetup) {
       if (!Begin()) {
-        xLOG("NTP → system time failed synchronized");
+        xLOG("System time failed synchronized from NTP");
         return false;
       }
     }
     bool tSuccess = ForceTimeSync();
     if (tSuccess) {
-      xLOG("NTP → system time synchronized");
+      xLOG("System time synchronized from NTP");
       char tDate[32];
       GetDate(tDate, sizeof(tDate));
-      xLOG("NTP → current date: %s", tDate);
+      xLOG("Current date: %s", tDate);
       char tTime[9];
       GetTime(tTime, sizeof(tTime));
-      xLOG("NTP → current time: %s", tTime);
-    } else xLOG("NTP → system time failed synchronized");
+      xLOG("Current time: %s", tTime);
+    } else xLOG("System time failed synchronized from NTP");
     return tSuccess;
   }
 
   int8_t NTP_::GetGMTOffset() {
     UpdateTime();
-    struct tm tLocal;
-    localtime_r((time_t*)&mCurrentEpoch, &tLocal);
-    #ifdef __TM_GMTOFF
-      if (tLocal.__TM_GMTOFF != 0) {
-        return (int8_t)(tLocal.__TM_GMTOFF / SECONDS_PER_HOUR);
-      }
-    #endif
-    unsigned long tOffset = mCfg.GMTOffset;
-    bool tIsDst = IsDST(mCurrentEpoch + mCfg.GMTOffset);
-    if (tIsDst) tOffset += SECONDS_PER_HOUR;
-    return (int8_t)(tOffset / SECONDS_PER_HOUR);
+    const long tOffset = mCfg.GMTOffset + mCfg.DaylightOffset;
+    return static_cast<int8_t>(tOffset / SECONDS_PER_HOUR);
   }
 
   const char *NTP_::GetTimezoneName() {
-    struct tm tLocal;
-    localtime_r((time_t*)&mCurrentEpoch, &tLocal);
-    #ifdef __TM_ZONE
-      if (tLocal.__TM_ZONE) return tLocal.__TM_ZONE;
-    #endif
-    bool tIsDst = IsDST(mCurrentEpoch + mCfg.GMTOffset);
-    return tIsDst ? "EEST" : "EET";
+    return mCfg.DaylightOffset != 0 ? "DST" : "STD";
   }
 
   void NTP_::PrintDateTimeInfo() {

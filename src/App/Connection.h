@@ -35,7 +35,9 @@ namespace App {
       static void Unlock();
       static void WiFiEventTask(void *tParameter);
       void SetupAp();
-      void ConnectSta();
+        bool ConnectSta();
+        bool TryConnectStaWithRetry();
+        void SwitchToFallbackApMode(bool tPersistConfig);
       void StartMdns();
       void PrintConnectionInfo();
       void BootstrapVault();

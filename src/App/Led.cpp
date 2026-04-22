@@ -41,7 +41,7 @@ namespace App {
   void Led_::AddPin(uint8_t tPin, const char *tMessage, bool tActiveHigh) {
     Guard tLock;
     if (FindPin(tPin) != -1) {
-      xLOG("Led → already added %d pin", tPin);
+      xLOG("Led already added %d pin", tPin);
       return;
     }
     pinMode(tPin, OUTPUT);
@@ -50,7 +50,7 @@ namespace App {
     tCfg.ActiveHigh = tActiveHigh;
     mPins.push_back(tCfg);
     SetLevel(mPins.back(), false);
-    xLOG("Led → added pin %d %s", tPin, (tMessage ? tMessage : ""));
+    xLOG("Led added pin %d %s", tPin, (tMessage ? tMessage : ""));
   }
 
   void Led_::On(uint8_t tPin) {
@@ -65,15 +65,6 @@ namespace App {
     int tIndex = FindPin(tPin);
     if (tIndex == -1) return;
     SetLevel(mPins[tIndex], false);
-  }
-
-  bool Led_::IsOn(uint8_t tPin) const {
-    Guard tLock;
-    int tIndex = FindPin(tPin);
-    if (tIndex == -1) return false;
-    const SPinConfig &tCfg = mPins[tIndex];
-    const int tLevel = digitalRead(tCfg.Pin);
-    return tCfg.ActiveHigh ? (tLevel == HIGH) : (tLevel == LOW);
   }
 
 };

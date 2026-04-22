@@ -109,7 +109,6 @@ namespace App {
       static const GFXglyph *FindGlyphForCodePoint(const GFXfont *tFont, uint16_t tCodePoint);
       static bool DecodeGlyphBitmapData(const GFXfont *tFont, const GFXglyph *tGlyph, std::vector<uint8_t> &tOutput);
       static uint8_t ReadGlyphCoverageNibble(const std::vector<uint8_t> &tData, uint16_t tWidth, uint16_t tX, uint16_t tY);
-      static STextBounds MeasureGfxTextBounds(const GFXfont *tFont, const char *tText);
       static uint8_t NormalizeToSpectra6Color(uint8_t tColor);
       static int JpegDrawCallback(JPEGDRAW *tDraw);
       void EnsureJpgToneLut();

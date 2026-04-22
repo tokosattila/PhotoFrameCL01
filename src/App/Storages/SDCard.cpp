@@ -42,22 +42,21 @@ namespace App {
   bool SDCard_::Init(bool tVerbose) {
     ReloadConfig();
     Guard tLock;
-    SPI.begin(mSckPin, mMisoPin, mMosiPin, mCsPin);
-    mMounted = SD.begin(mCsPin, SPI, mSpiSpeed, mMountPoint, mMaxFiles);
+    SPI.begin(kSckPin, kMisoPin, kMosiPin, kCsPin);
+    mMounted = SD.begin(kCsPin, SPI, kSpiSpeed, kMountPoint, kMaxFiles);
     if (mMounted) {
       if (tVerbose) {
-        xLOG("SDCard → init successful");
-        xLOG("SDCard → type: %s", CardTypeName());
+        xLOG("SDCard init successful");
+        xLOG("Type: %s", CardTypeName());
         char tTotalBuffer[16], tUsedBuffer[16];
         UTL.ByteToReadableSize(TotalBytes(), tTotalBuffer, sizeof(tTotalBuffer));
         UTL.ByteToReadableSize(UsedBytes(), tUsedBuffer, sizeof(tUsedBuffer));
-        xLOG("SDCard → size: %s / %s", tUsedBuffer, tTotalBuffer);
+        xLOG("Size: %s / %s", tUsedBuffer, tTotalBuffer);
         BootstrapVault(tVerbose);
       }
     } else {
-      if (tVerbose) xLOG("SDCard → init failed, no card inserted?");
+      if (tVerbose) xLOG("SDCard init failed, no card inserted?");
     }
-    if (mCallback) mCallback();
     return mMounted;
   }
 
@@ -69,11 +68,6 @@ namespace App {
   bool SDCard_::IsMounted() {
     Guard tLock;
     return mMounted && (SD.cardType() != CARD_NONE);
-  }
-
-  void SDCard_::Callback(FSDCardCallback tCallback) {
-    Guard tLock;
-    mCallback = tCallback;
   }
 
   void SDCard_::End() {
@@ -112,21 +106,28 @@ namespace App {
     Guard tLock;
     mListPos = 0;
     mListBuffer[0] = '\0';
-    if (!mMounted) return "SDCard → not mounted\r\n";   
+    if (!mMounted) return "SDCard not mounted\r\n";   
     char tFullPathBuffer[128];
     strncpy(tFullPathBuffer, NormalizePath(tPath), sizeof(tFullPathBuffer) - 1);
     tFullPathBuffer[sizeof(tFullPathBuffer) - 1] = '\0';
     File tRoot = SD.open(tFullPathBuffer);
-    if (!tRoot || !tRoot.isDirectory()) return "SDCard → invalid root\r\n";    
+    if (!tRoot || !tRoot.isDirectory()) return "SDCard invalid root\r\n";    
     auto IsFile = [&](const char *tName) -> bool {
       if (!tName || tName[0] == '\0') return false;
       const char *tDot = strrchr(tName, '.');
       if (tDot && strlen(tDot + 1) >= 1) return true;
       return false;
     };
+    auto IsHiddenDirectory = [&](File &tNode, const char *tName) -> bool {
+      return tNode && tNode.isDirectory() && tName && tName[0] == '.';
+    };
     File tEntry = tRoot.openNextFile();
     while (tEntry) {
       const char *tShort = GetFileName(tEntry.name());
+      if (IsHiddenDirectory(tEntry, tShort)) {
+        tEntry = tRoot.openNextFile();
+        continue;
+      }
       if (tEntry.isDirectory() && !IsFile(tShort)) {
         AppendToBuffer(tShort, strlen(tShort));
         AppendToBuffer("/\r\n", 3);
@@ -136,6 +137,10 @@ namespace App {
         File tFile = tSub.openNextFile();
         while (tFile) {
           const char *tName = GetFileName(tFile.name());
+          if (IsHiddenDirectory(tFile, tName)) {
+            tFile = tSub.openNextFile();
+            continue;
+          }
           if (IsFile(tName)) {
             char tBuffer[16];
             UTL.ByteToReadableSize(tFile.size(), tBuffer, sizeof(tBuffer));
@@ -156,6 +161,10 @@ namespace App {
     File tFileEntry = tFileRoot.openNextFile();
     while (tFileEntry) {
       const char *tShort = GetFileName(tFileEntry.name());
+      if (IsHiddenDirectory(tFileEntry, tShort)) {
+        tFileEntry = tFileRoot.openNextFile();
+        continue;
+      }
       if (IsFile(tShort)) {
         char tBuffer[16];
         UTL.ByteToReadableSize(tFileEntry.size(), tBuffer, sizeof(tBuffer));
@@ -180,7 +189,7 @@ namespace App {
   File SDCard_::OpenFile(const char *tPath, const char *tMode, bool tCreate) {
     tPath = NormalizePath(tPath);
     File tOk = SD.open(tPath, tMode, tCreate);
-    if (!tOk) xLOG("SDCard → cannot open: %s", tPath);
+    if (!tOk) xLOG("Cannot open: %s", tPath);
     return tOk;
   }
 
@@ -217,7 +226,7 @@ namespace App {
   bool SDCard_::WriteFile(const char *tPath, const char *tData, bool tVerbose) {
     Guard tLock;
     if (!mMounted) {
-      if (tVerbose) xLOG("SDCard → not mounted");
+      if (tVerbose) xLOG("Not mounted");
       return false;
     }
     char tNormalizedPath[128];
@@ -231,13 +240,13 @@ namespace App {
       tOk = (tFile.write((const uint8_t*)tData, tLength) == tLength);
       if (tOk) {
         tFile.flush();
-        if (tVerbose) xLOG("SDCard → file created → %s", tName);
+        if (tVerbose) xLOG("File created → %s", tName);
       } else {
-        if (tVerbose) xLOG("SDCard → error writing file → %s", tName);
+        if (tVerbose) xLOG("Error writing file → %s", tName);
       }
       tFile.close();
     } else {
-      if (tVerbose) xLOG("SDCard → failed to open for writing → %s", tName);
+      if (tVerbose) xLOG("Failed to open for writing → %s", tName);
     }
     return tOk;
   }
@@ -249,8 +258,8 @@ namespace App {
     strncpy(tNormalizedPath, NormalizePath(tPath), sizeof(tNormalizedPath) - 1);
     tNormalizedPath[sizeof(tNormalizedPath) - 1] = '\0';
     bool tOk = SD.remove(tNormalizedPath);
-    if (tOk) xLOG("SDCard → file deleted → %s", tPath);
-    else xLOG("SDCard → error deleting file → %s", tPath);
+    if (tOk) xLOG("File deleted → %s", tPath);
+    else xLOG("Error deleting file → %s", tPath);
     return tOk;
   }
 
@@ -260,9 +269,9 @@ namespace App {
     bool tExists = Exists(tPath);
     bool tOk = tExists ? true : SD.mkdir(tPath);
     if (tVerbose) {
-      if (tOk && !tExists) xLOG("SDCard → directory created → %s", tPath);
-      else if (tExists) xLOG("SDCard → directory already exists → %s", tPath);
-      else xLOG("SDCard → error creating directory → %s", tPath);
+      if (tOk && !tExists) xLOG("Directory created → %s", tPath);
+      else if (tExists) xLOG("Directory already exists → %s", tPath);
+      else xLOG("Error creating directory → %s", tPath);
     }
     return tOk;
   }
@@ -274,8 +283,8 @@ namespace App {
     strncpy(tNormalizedPath, NormalizePath(tPath), sizeof(tNormalizedPath) - 1);
     tNormalizedPath[sizeof(tNormalizedPath) - 1] = '\0';
     bool tOk = SD.rmdir(tNormalizedPath);
-    if (tOk) xLOG("SDCard → directory deleted → %s", tPath);
-    else xLOG("SDCard → error deleting directory → %s", tPath);
+    if (tOk) xLOG("Directory deleted → %s", tPath);
+    else xLOG("Error deleting directory → %s", tPath);
     return tOk;
   }
 
@@ -288,6 +297,14 @@ namespace App {
   const char *SDCard_::GetFileName(const char *tPath) {
     const char *tName = strrchr(tPath, '/');
     return tName ? tName + 1 : tPath;
+  }
+
+  void SDCard_::InvalidateFileCache() {
+    for (size_t i = 0; i < mFileList.size(); ++i) free((void*)mFileList[i]);
+    mFileList.clear();
+    mFilesCount = 0;
+    mFilesLastDir[0] = '\0';
+    mFilesLastExt[0] = '\0';
   }
 
   void SDCard_::BootstrapVault(bool tVerbose) {
@@ -337,12 +354,12 @@ namespace App {
     }
     if (mFilesCount > 0) return mFileList;
     if (!SD.exists(tDir)) {
-      xLOG("SDCard → directory not found: %s", tDir);
+      xLOG("Directory not found → %s", tDir);
       return {};
     }
     File tRoot = SD.open(tDir);
     if (!tRoot || !tRoot.isDirectory()) {
-      xLOG("SDCard → cannot open directory: %s", tDir);
+      xLOG("Cannot open directory → %s", tDir);
       return {};
     }
     char tSearchExt[16];
@@ -350,7 +367,13 @@ namespace App {
     else snprintf(tSearchExt, sizeof(tSearchExt), ".%s", tExt);
     tSearchExt[sizeof(tSearchExt)-1] = '\0';
     File tFile = tRoot.openNextFile();
+    size_t tEntryCount = 0;
     while (tFile) {
+      tEntryCount++;
+      if ((tEntryCount % 16U) == 0U) {
+        esp_task_wdt_reset();
+        vTaskDelay(1);
+      }
       if (!tFile.isDirectory()) {
         const char *tName = tFile.name();
         if (strstr(tName, tSearchExt) || strcmp(tExt, "*") == 0) {
@@ -358,6 +381,7 @@ namespace App {
           if (tFull) mFileList.push_back(tFull);
         }
       }
+      tFile.close();
       tFile = tRoot.openNextFile();
     }
     tRoot.close();
@@ -392,57 +416,6 @@ namespace App {
       }
     }
     return mFileList[tNextIndex];
-  }
-
-  const char *SDCard_::CatFile(const char *tPath) {
-    Guard tLock;
-    mListPos = 0;
-    mFileBuffer[0] = '\0';
-    if (!mMounted) {
-      strncpy(mFileBuffer, "  Error: SDCard not mounted\r\n", sizeof(mFileBuffer) - 1);
-      return mFileBuffer;
-    }
-    if (!tPath || tPath[0] == '\0') {
-      strncpy(mFileBuffer, "  Error: No path specified\r\n", sizeof(mFileBuffer) - 1);
-      return mFileBuffer;
-    }
-    char tNormalizedPath[128];
-    strncpy(tNormalizedPath, NormalizePath(tPath), sizeof(tNormalizedPath) - 1);
-    tNormalizedPath[sizeof(tNormalizedPath) - 1] = '\0';
-    if (!SD.exists(tNormalizedPath)) {
-      snprintf(mFileBuffer, sizeof(mFileBuffer), "  Error: File not found: %s\r\n", tNormalizedPath);
-      return mFileBuffer;
-    }
-    File tFile = SD.open(tNormalizedPath, FILE_READ);
-    if (!tFile) {
-      snprintf(mFileBuffer, sizeof(mFileBuffer), "  Error: Cannot open file: %s\r\n", tNormalizedPath);
-      return mFileBuffer;
-    }
-    if (tFile.isDirectory()) {
-      tFile.close();
-      snprintf(mFileBuffer, sizeof(mFileBuffer), "  Error: Is a directory: %s\r\n", tNormalizedPath);
-      return mFileBuffer;
-    }
-    size_t tSize = tFile.size();
-    if (tSize > sizeof(mFileBuffer)) {
-      tFile.close();
-      char tSizeBuffer[16];
-      UTL.ByteToReadableSize((uint32_t)tSize, tSizeBuffer, sizeof(tSizeBuffer));
-      snprintf(mFileBuffer, sizeof(mFileBuffer), "  Error: File too large (%s).\r\n", tSizeBuffer);
-      return mFileBuffer;
-    }
-    while (tFile.available() && mListPos < sizeof(mFileBuffer) - 3) {
-      size_t tSpace = sizeof(mFileBuffer) - mListPos - 2;
-      size_t tRead = tFile.readBytesUntil('\n', mFileBuffer + mListPos, tSpace);
-      mListPos += tRead;
-      if (mListPos >= sizeof(mFileBuffer) - 3) break;
-      if (tRead > 0 && mFileBuffer[mListPos - 1] == '\r') mListPos--;
-      mFileBuffer[mListPos++] = '\r';
-      mFileBuffer[mListPos++] = '\n';
-    }
-    mFileBuffer[mListPos] = '\0';
-    tFile.close();
-    return mFileBuffer;
   }
 
 }

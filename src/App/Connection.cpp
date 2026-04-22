@@ -48,7 +48,7 @@ namespace App {
         break;
       }
       if (millis() - tStart > WIFI_CONNECT_TIMEOUT_MS) {
-        xLOG("Connection → timeout, timedate syncronization skipped");
+        xLOG("Connection timeout, timedate syncronization skipped");
         break;
       }
       vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
@@ -109,27 +109,33 @@ namespace App {
     Connection_ *tSelf = static_cast<Connection_ *>(tParameter);
     bool tLastActive = false;
     bool tMdnsRunning = false;
+    bool tStaFailureLogged = false;
     while (!sStopWiFiEventTask) {
       bool tCurrentActive = false;
       if (tSelf->mCfg.Connection.ApModeEnable) {
         tSelf->SetupAp();
         tCurrentActive = (mWiFi->softAPgetStationNum() > 0);
+        tStaFailureLogged = false;
       } else {
-        uint32_t tStart = millis();
-        tSelf->ConnectSta();
-        while (mWiFi->status() != WL_CONNECTED && (millis() - tStart) < WIFI_CONNECT_TIMEOUT_MS) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
-        if (mWiFi->status() == WL_CONNECTED) tCurrentActive = true;
+        if (tSelf->TryConnectStaWithRetry()) tCurrentActive = true;
         else {
-          xLOG("Connection → STA failed, fallback to AP mode");
-          tSelf->SetupAp();
-          tCurrentActive = true;
+          if (!tStaFailureLogged) {
+            xLOG("STA failed after retries");
+            tStaFailureLogged = true;
+          }
+          if (tSelf->mCfg.Connection.StaAutoFallbackApEnable) {
+            tSelf->SwitchToFallbackApMode(true);
+            tCurrentActive = true;
+            tStaFailureLogged = false;
+          }
         }
+        if (tCurrentActive) tStaFailureLogged = false;
       }
       if (tCurrentActive && !tLastActive) {
         if (tSelf->mCfg.Connection.ApModeEnable) {
-          xLOG("Connection → client connected to AP, clients: %d", mWiFi->softAPgetStationNum());
+          xLOG("Client connected to AP, clients → %d", mWiFi->softAPgetStationNum());
         }
-        if (tSelf->mCfg.Connection.MdnsEnable) {
+        if (tSelf->mCfg.Connection.MdnsEnable && tSelf->mCfg.Connection.MdnsName.length() > 0 && tSelf->mCfg.Connection.StaIpEnable) {
           tSelf->StartMdns();
           tMdnsRunning = true;
         }
@@ -137,12 +143,12 @@ namespace App {
       }
       if (!tCurrentActive && tLastActive) {
         if (tSelf->mCfg.Connection.ApModeEnable) {
-          xLOG("Connection → all clients disconnected from AP");
+          xLOG("Client(s) disconnected from AP");
         }
         if (tMdnsRunning) {
           tSelf->mMDNS.end();
           tMdnsRunning = false;
-          xLOG("Connection → localhost stopped, connection lost");
+          xLOG("Localhost stopped, connection lost");
         }
       }
       tLastActive = tCurrentActive;
@@ -161,12 +167,12 @@ namespace App {
     mWiFi->persistent(false);
     mWiFi->softAPConfig(tIp, tGateway, tSubnet);
     mWiFi->softAP(mCfg.Connection.ApSsid.c_str(), mCfg.Connection.ApPassword.c_str());
-    xLOG("Connection → starting AP Mode: %s", mCfg.Connection.ApSsid.c_str());
+    xLOG("Starting AP Mode → %s", mCfg.Connection.ApSsid.c_str());
     PrintConnectionInfo();
   }
 
-  void Connection_::ConnectSta() {
-    if (mWiFi->status() == WL_CONNECTED || (mWiFi->getMode() == WIFI_STA && mWiFi->status() == WL_IDLE_STATUS)) return;
+  bool Connection_::ConnectSta() {
+    if (mWiFi->status() == WL_CONNECTED) return true;
     mWiFi->mode(WIFI_STA);
     mWiFi->useStaticBuffers(true);
     if (mCfg.Connection.StaIpEnable) {
@@ -179,11 +185,51 @@ namespace App {
       mWiFi->config(tIp, tGateway, tSubnet, tDns1, tDns2);
     }
     mWiFi->hostname(mCfg.Connection.MdnsName);
-    xLOG("Connection → connecting to WiFi: %s", mCfg.Connection.StaSsid.c_str());
+    xLOG("Connecting to WiFi → %s", mCfg.Connection.StaSsid.c_str());
     mWiFi->begin(mCfg.Connection.StaSsid.c_str(), mCfg.Connection.StaPassword.c_str());
     uint8_t tRetry = 0;
     while (mWiFi->status() != WL_CONNECTED && tRetry++ < WIFI_RETRY_COUNT) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
     PrintConnectionInfo();
+    return mWiFi->status() == WL_CONNECTED;
+  }
+
+  bool Connection_::TryConnectStaWithRetry() {
+    if (mWiFi->status() == WL_CONNECTED) return true;
+    uint8_t tMaxRetry = mCfg.Connection.StaConnectMaxRetry;
+    if (tMaxRetry == 0) tMaxRetry = 1;
+    uint32_t tRetryDelayMs = mCfg.Connection.StaRetryDelayMs;
+    if (tRetryDelayMs < ONE_SECOND_MS) tRetryDelayMs = ONE_SECOND_MS;
+    for (uint8_t tAttempt = 1; tAttempt <= tMaxRetry; tAttempt++) {
+      xLOG("STA attempt → %u/%u", tAttempt, tMaxRetry);
+      if (ConnectSta()) return true;
+      if (tAttempt < tMaxRetry) vTaskDelay(tRetryDelayMs / portTICK_PERIOD_MS);
+    }
+    return false;
+  }
+
+  void Connection_::SwitchToFallbackApMode(bool tPersistConfig) {
+    if (!mCfg.Connection.FallbackApSsid.length()) {
+      xLOG("Fallback AP skipped, missing fallback SSID");
+      return;
+    }
+    mCfg.Connection.ApModeEnable = true;
+    mCfg.Connection.ApSsid = mCfg.Connection.FallbackApSsid;
+    mCfg.Connection.ApPassword = mCfg.Connection.FallbackApPassword;
+    mCfg.Connection.ApIp = mCfg.Connection.FallbackApIp;
+    mCfg.Connection.ApGateway = mCfg.Connection.FallbackApGateway;
+    mCfg.Connection.ApSubnet = mCfg.Connection.FallbackApSubnet;
+    if (tPersistConfig) {
+      SAppConfig tConfig = CFG.Get<SAppConfig>();
+      tConfig.Connection.ApModeEnable = true;
+      tConfig.Connection.ApSsid = mCfg.Connection.FallbackApSsid;
+      tConfig.Connection.ApPassword = mCfg.Connection.FallbackApPassword;
+      tConfig.Connection.ApIp = mCfg.Connection.FallbackApIp;
+      tConfig.Connection.ApGateway = mCfg.Connection.FallbackApGateway;
+      tConfig.Connection.ApSubnet = mCfg.Connection.FallbackApSubnet;
+      if (!CFG.SaveAllConfig(tConfig)) xLOG("Failed to persist fallback AP mode");
+    }
+    xLOG("Switched to fallback AP mode → %s", mCfg.Connection.ApSsid.c_str());
+    SetupAp();
   }
 
   void Connection_::StartMdns() {
@@ -192,7 +238,7 @@ namespace App {
     uint8_t tRetry = 0;
     while (!(mWiFi->status() == WL_CONNECTED || mCfg.Connection.ApModeEnable) && tRetry++ < 10) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
     if (!(mWiFi->status() == WL_CONNECTED || mCfg.Connection.ApModeEnable)) {
-      xLOG("Connection → localhost start failed, no active interface");
+      xLOG("Localhost start failed, no active interface");
       return;
     }
     bool tStarted = false;
@@ -203,13 +249,13 @@ namespace App {
       }
       tStarted = mMDNS.begin(mCfg.Connection.MdnsName);
       if (!tStarted) {
-        xLOG("Connection → localhost start attempt %d failed", i + 1);
+        xLOG("Localhost start attempt %d failed", i + 1);
         vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
       }
     }
-    if (tStarted) {
-      xLOG("Connection → localhost started: %s.local", mCfg.Connection.MdnsName.c_str());
-    } else xLOG("Connection → localhost failed to start after 3 attempts");
+    if (tStarted && mCfg.Connection.MdnsName.length() > 0 && mCfg.Connection.ApModeEnable) {
+      xLOG("Localhost started → %s.local", mCfg.Connection.MdnsName.c_str());
+    } else xLOG("Localhost failed to start after 3 attempts");
   }
 
   void Connection_::PrintConnectionInfo() {
@@ -231,7 +277,7 @@ namespace App {
       snprintf(tText, sizeof(tText), "MAC: %s", mWiFi->macAddress().c_str());
       UTL.PrintInfo(tText);
       UTL.PrintInfo("", EUtilsInfoType::Footer);
-      xLOG("Connect to WiFi AP: %s", mCfg.Connection.ApSsid.c_str());
+      xLOG("Connect to WiFi, AP Mode → %s", mCfg.Connection.ApSsid.c_str());
     } else {
       snprintf(tText, sizeof(tText), "CONNECTION: STA MODE %s", mCfg.Connection.StaIpEnable ? "(STATIC)" : "(DHCP)");
       UTL.PrintInfo(tText, EUtilsInfoType::Header);

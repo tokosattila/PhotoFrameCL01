@@ -62,6 +62,23 @@ E-ink digital picture frame with WiFi-enabled maintenance mode, color rendering 
 ## 📁 Project Structure
 
 ```
+
+## 🧭 Dashboard JS Style Rules
+
+The dashboard JavaScript sources under `src/App/Dashboard/Assets/Js` follow these conventions:
+
+- Variable names must be descriptive (avoid one-letter names like `c`, `u`, `r`, `d`).
+- Prefer the existing prefixes:
+  - `t...` for local/runtime values (example: `tApp`, `tResponse`, `tParams`, `tPayload`)
+  - `k...` for constant/local fixed values
+  - `m...` for member state
+- Translation calls are key-only: `TranslateMessage('key_name')`.
+  - Do not pass fallback literals to `TranslateMessage`.
+
+Exception:
+
+- The Toastify block embedded in `src/App/Dashboard/Assets/Js/App.h` is a third-party minified vendor snippet.
+- Its short variable names are intentionally kept as-is and are excluded from the descriptive naming rule.
 src/
 ├── Main.cpp                    # Application entry point
 ├── App/
@@ -101,8 +118,7 @@ test/
 ├── test_RTCTime/               # RTC time functions tests
 ├── test_SDCard/                # SD Card path/file utilities
 ├── test_Storage/               # Storage fallback logic tests
-├── test_Utils/                 # Utility function tests
-└── test_Wrappers/              # Type wrapper tests
+└── test_Utils/                 # Utility function tests
 ```
 
 ## 🛠️ Build

@@ -35,6 +35,13 @@ struct StorageSelection {
   bool FallbackActive;
 };
 
+struct StorageLabelLayout {
+  std::string PrimaryStorageKey;
+  std::string SecondaryStorageKey;
+  std::string PrimaryLabelKey;
+  std::string SecondaryLabelKey;
+};
+
 StorageSelection SelectActiveStorage(const MockStorageState &state) {
   StorageSelection result = {EFileSystemType::LittleFS, false, false};
   
@@ -99,6 +106,22 @@ StorageSelection SelectActiveStorage(const MockStorageState &state) {
   }
   
   return result; // Not mounted
+}
+
+StorageLabelLayout BuildDashboardStorageLabelLayout(EFileSystemType tDefaultFS, bool tFallbackEnabled) {
+  StorageLabelLayout result;
+
+  result.PrimaryStorageKey = (tDefaultFS == EFileSystemType::SDCard) ? "sd_card" : "littlefs";
+  result.SecondaryStorageKey = (result.PrimaryStorageKey == "sd_card") ? "littlefs" : "sd_card";
+
+  const bool tPrimaryStorageIsSd = result.PrimaryStorageKey == "sd_card";
+  const bool tSecondaryStorageIsSd = result.SecondaryStorageKey == "sd_card";
+
+  result.PrimaryLabelKey = tPrimaryStorageIsSd ? "sd_card" : "littlefs";
+  if (tFallbackEnabled) result.SecondaryLabelKey = tSecondaryStorageIsSd ? "sd_card_fallback" : "littlefs_fallback";
+  else result.SecondaryLabelKey = tSecondaryStorageIsSd ? "sd_card" : "littlefs";
+
+  return result;
 }
 
 // ============================================================================
@@ -282,6 +305,36 @@ void test_only_primary_mounted_no_images() {
 }
 
 // ============================================================================
+// Dashboard Stats label/order mapping tests
+// ============================================================================
+
+void test_DashboardLayout_default_sd_fallback_enabled() {
+  StorageLabelLayout layout = BuildDashboardStorageLabelLayout(EFileSystemType::SDCard, true);
+
+  TEST_ASSERT_EQUAL_STRING("sd_card", layout.PrimaryStorageKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("littlefs", layout.SecondaryStorageKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("sd_card", layout.PrimaryLabelKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("littlefs_fallback", layout.SecondaryLabelKey.c_str());
+}
+
+void test_DashboardLayout_default_littlefs_fallback_enabled() {
+  StorageLabelLayout layout = BuildDashboardStorageLabelLayout(EFileSystemType::LittleFS, true);
+
+  TEST_ASSERT_EQUAL_STRING("littlefs", layout.PrimaryStorageKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("sd_card", layout.SecondaryStorageKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("littlefs", layout.PrimaryLabelKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("sd_card_fallback", layout.SecondaryLabelKey.c_str());
+}
+
+void test_DashboardLayout_fallback_disabled_has_no_fallback_labels() {
+  StorageLabelLayout layoutSd = BuildDashboardStorageLabelLayout(EFileSystemType::SDCard, false);
+  StorageLabelLayout layoutLittleFs = BuildDashboardStorageLabelLayout(EFileSystemType::LittleFS, false);
+
+  TEST_ASSERT_EQUAL_STRING("littlefs", layoutSd.SecondaryLabelKey.c_str());
+  TEST_ASSERT_EQUAL_STRING("sd_card", layoutLittleFs.SecondaryLabelKey.c_str());
+}
+
+// ============================================================================
 // Test Runner
 // ============================================================================
 
@@ -307,6 +360,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_nothing_mounted);
   RUN_TEST(test_only_fallback_mounted);
   RUN_TEST(test_only_primary_mounted_no_images);
+
+  // Dashboard stats label/order mapping
+  RUN_TEST(test_DashboardLayout_default_sd_fallback_enabled);
+  RUN_TEST(test_DashboardLayout_default_littlefs_fallback_enabled);
+  RUN_TEST(test_DashboardLayout_fallback_disabled_has_no_fallback_labels);
   
   return UNITY_END();
 }

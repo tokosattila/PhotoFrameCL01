@@ -14,10 +14,12 @@
 #include <esp_sleep.h>
 #include <esp_timer.h>
 #include <esp_wifi.h>
+#include <esp_task_wdt.h>
 #include <driver/rtc_io.h>
 #include <driver/gpio.h>
 #include <driver/adc.h>
 #include <driver/touch_pad.h>
+#include <driver/i2s.h>
 #include <nvs_flash.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
@@ -30,9 +32,11 @@
 #include <sys/time.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <strings.h>
 #include <vector>
 #include <mbedtls/sha256.h>
+#include <pgmspace.h>
 #include <Arduino.h>
 #include <USB.h>
 #include <FS.h>
@@ -99,14 +103,17 @@ namespace App {
     Btn2 = 0U,
     Btn3 = 5U,
     ActLedPin = 42U,
-    RTCSdaPin = 47U,
-    RTCSclPin = 48U,
-    AXPSdaPin = 47U,
-    AXPSclPin = 48U,
-    SDMisoPin = 40U,
-    SDMosiPin = 41U,
-    SDSckPin = 39U,
-    SDCsPin = 38U,
+    I2CSdaPin = 47U,
+    I2CSclPin = 48U,
+    I2SMclkPin = 14U,
+    I2SWsPin = 16U,
+    I2SBclkPin = 15U,
+    I2SDoutPin = 17U,
+    CodecPaPin = 7U,
+    MisoPin = 40U,
+    MosiPin = 41U,
+    SckPin = 39U,
+    CsPin = 38U
   };
 
   enum class EFileSystemType : uint8_t {
@@ -133,38 +140,43 @@ namespace App {
       AutoGuard& operator=(const AutoGuard&) = delete;
   };
 
-  class Percentage {
+  class I2CBusGuard {
     public:
-      constexpr explicit Percentage(uint8_t tValue = 0) : mValue(tValue) {}
-      constexpr uint8_t Get() const { return mValue; }
-      constexpr operator uint8_t() const { return mValue; }
-      bool operator==(const Percentage& tOther) const { return mValue == tOther.mValue; }
-      bool operator!=(const Percentage& tOther) const { return mValue != tOther.mValue; }
+      I2CBusGuard() {
+        SemaphoreHandle_t tMutex = Mutex();
+        if (tMutex) xSemaphoreTakeRecursive(tMutex, portMAX_DELAY);
+      }
+      ~I2CBusGuard() {
+        SemaphoreHandle_t tMutex = Mutex();
+        if (tMutex) xSemaphoreGiveRecursive(tMutex);
+      }
+      I2CBusGuard(const I2CBusGuard&) = delete;
+      I2CBusGuard& operator=(const I2CBusGuard&) = delete;
     private:
-      uint8_t mValue;
-  };
-
-  class Port {
-    public:
-      constexpr explicit Port(uint16_t tValue = 0) : mValue(tValue == 0 ? 1 : tValue) {}
-      constexpr uint16_t Get() const { return mValue; }
-      constexpr operator uint16_t() const { return mValue; }
-      bool IsValid() const { return mValue > 0; }
-      bool operator==(const Port& tOther) const { return mValue == tOther.mValue; }
-      bool operator!=(const Port& tOther) const { return mValue != tOther.mValue; }
-    private:
-      uint16_t mValue;
+      static SemaphoreHandle_t Mutex() {
+        static SemaphoreHandle_t sI2CMutex = xSemaphoreCreateRecursiveMutex();
+        return sI2CMutex;
+      }
   };
 
   struct SDirEntry {
     char Name[128] = "";
     bool IsDir = false;
     size_t Size = 0;
+  };
+  
+  struct SSound {
+    constexpr SSound(uint16_t tFrequencyHz = 0, uint16_t tDurationMs = 0, uint16_t tPauseMs = 0, uint8_t tAmplitudePct = 0) : FrequencyHz(tFrequencyHz), DurationMs(tDurationMs), PauseMs(tPauseMs), AmplitudePct(tAmplitudePct) {}
+    uint16_t FrequencyHz;
+    uint16_t DurationMs;
+    uint16_t PauseMs;
+    uint8_t AmplitudePct;
   };  
 
   struct SDeviceConfig {
     String Name;
     String Version;
+    bool SoundEnabled = true;
     uint8_t NextImgPin = 0;
     uint8_t ResetPin = 0;
     uint8_t SettingPin = 0;
@@ -179,8 +191,16 @@ namespace App {
     String ApIp;
     String ApGateway;
     String ApSubnet;
+    String FallbackApSsid;
+    String FallbackApPassword;
+    String FallbackApIp;
+    String FallbackApGateway;
+    String FallbackApSubnet;
     String StaSsid;
     String StaPassword;
+    bool StaAutoFallbackApEnable = true;
+    uint8_t StaConnectMaxRetry = 3;
+    uint32_t StaRetryDelayMs = 5 * 1000;
     bool StaIpEnable = false;
     String StaIp;
     String StaGateway;
@@ -194,9 +214,13 @@ namespace App {
 
   struct SNTPConfig {
     String Server;
-    Port NtpPort {123};
-    unsigned long GMTOffset = 0;
-    unsigned long UpdateInterval = 0;
+    uint16_t NtpPort = 123;
+    long GMTOffset = 0;
+    long DaylightOffset = 0;
+    String TimeZoneLabel;
+    bool LowPowerSyncEnable = true;
+    unsigned long LowPowerSyncIntervalSec = 7UL * 24UL * 60UL * 60UL;
+    unsigned long LastSuccessfulSyncEpochUtc = 0;
     SNTPConfig() = default;
   };
 
@@ -204,9 +228,9 @@ namespace App {
     int32_t Width = 0;
     int32_t Height = 0;
     uint16_t Rotate = 0;
-    Percentage JpgBrightness {25};
-    Percentage JpgContrast {75};
-    Percentage JpgGamma {125};
+    uint8_t JpgBrightness = 25;
+    uint8_t JpgContrast = 75;
+    uint8_t JpgGamma = 125;
     String ImagesDir;
     String ImageExt;
     String CurrentFile;
@@ -221,7 +245,7 @@ namespace App {
   };
 
   struct SStorageConfig {
-    EFileSystemType DefaultFileSystem = EFileSystemType::LittleFS;
+    EFileSystemType DefaultFileSystem = EFileSystemType::SDCard;
     bool FallbackEnabled = true;
     SStorageConfig() = default;
   };
@@ -229,6 +253,16 @@ namespace App {
   struct SDashboardConfig {
     String User;
     String Password;
+    String Language;
+    std::vector<String> EnabledLanguages;
+    String Theme = "light";
+    bool ShowDescription = true;
+    uint16_t TargetWidth = 0;
+    uint16_t TargetHeight = 0;
+    uint16_t ThumbWidth = 0;
+    uint16_t ThumbHeight = 0;
+    uint16_t Rotate = 0;
+    String ImageExt;
     SDashboardConfig() = default;
   };
 
@@ -246,36 +280,56 @@ namespace App {
   constexpr unsigned long BAUDRATE = 115200;
 
   constexpr const char *IMAGES_DIR = "images";
+  constexpr const char *FIRMWARE_FILENAME = "firmware.bin";
 
-  constexpr const char *FIRMWARE_DIR = "/firmware";
-  constexpr const char *FIRMWARE_PATH = "/firmware/firmware.bin";
-  constexpr const char *FIRMWARE_SHA_PATH = "/firmware/firmware.sha256";
-
-  constexpr EFileSystemType DEFAULT_FILE_SYSTEM = EFileSystemType::SDCard;
+  constexpr EFileSystemType STORAGE_DEFAULT = EFileSystemType::SDCard;
   constexpr bool STORAGE_FALLBACK_ENABLED = true;
 
   constexpr uint16_t DISPLAY_WIDTH = 800;
   constexpr uint16_t DISPLAY_HEIGHT = 480;
-  constexpr uint16_t DISPLAY_ROTATE_FALLBACK = 0;
+  constexpr uint16_t DISPLAY_ROTATE = 0;
   constexpr const char *IMAGE_EXT = ".jpg";
+
+  constexpr uint16_t DASHBOARD_IMG_WIDTH = DISPLAY_WIDTH;
+  constexpr uint16_t DASHBOARD_IMG_HEIGHT = DISPLAY_HEIGHT;
+  constexpr uint16_t DASHBOARD_IMG_THUMB_WIDTH = 150;
+  constexpr uint16_t DASHBOARD_IMG_THUMB_HEIGHT = 150;
+  constexpr uint16_t DASHBOARD_IMG_ROTATE = DISPLAY_ROTATE;
+  constexpr float DASHBOARD_IMG_JPEG_QUALITY = 0.65f;
+  constexpr const char *DASHBOARD_IMG_EXT = IMAGE_EXT;
 
   constexpr uint8_t NEXT_IMG_PIN = static_cast<uint8_t>(EDevicePins::Btn1);
   constexpr uint8_t RESET_PIN = static_cast<uint8_t>(EDevicePins::Btn2);
   constexpr uint8_t SETTING_PIN = static_cast<uint8_t>(EDevicePins::Btn3);
   constexpr uint8_t ACT_LED_PIN = static_cast<uint8_t>(EDevicePins::ActLedPin);
+
+  static constexpr uint8_t SOUND_CODEC_ADDRESS = 0x18;
+  static constexpr uint32_t SOUND_SAMPLE_RATE = 24000;
+  constexpr uint8_t SOUND_I2S_MCLK_PIN = static_cast<uint8_t>(EDevicePins::I2SMclkPin);
+  constexpr uint8_t SOUND_I2S_WS_PIN = static_cast<uint8_t>(EDevicePins::I2SWsPin);
+  constexpr uint8_t SOUND_I2S_BCLK_PIN = static_cast<uint8_t>(EDevicePins::I2SBclkPin);
+  constexpr uint8_t SOUND_I2S_DOUT_PIN = static_cast<uint8_t>(EDevicePins::I2SDoutPin);
+  constexpr uint8_t SOUND_CODEC_PA_PIN = static_cast<uint8_t>(EDevicePins::CodecPaPin);
+  static constexpr uint8_t SOUND_CODEC_BOARD_INIT_PIN = 45U;
+  static constexpr bool SOUND_CODEC_PA_ACTIVE_HIGH = true;
+  static constexpr bool SOUND_CODEC_CLOCK_FROM_BCLK = false;
+  static constexpr uint8_t SOUND_MASTER_VOLUME_PCT = 25;
+  constexpr uint8_t SOUND_CODEC_I2C_SDA_PIN = static_cast<uint8_t>(EDevicePins::I2CSdaPin);
+  constexpr uint8_t SOUND_CODEC_I2C_SCL_PIN = static_cast<uint8_t>(EDevicePins::I2CSclPin);
+  static constexpr i2s_port_t SOUND_I2S_PORT = I2S_NUM_0;
   
   static constexpr uint8_t RTC_ADDRESS = 0x51;
-  constexpr uint8_t RTC_SDA_PIN = static_cast<uint8_t>(EDevicePins::RTCSdaPin);
-  constexpr uint8_t RTC_SCL_PIN = static_cast<uint8_t>(EDevicePins::RTCSclPin);
+  constexpr uint8_t RTC_SDA_PIN = static_cast<uint8_t>(EDevicePins::I2CSdaPin);
+  constexpr uint8_t RTC_SCL_PIN = static_cast<uint8_t>(EDevicePins::I2CSclPin);
 
   static constexpr uint8_t POWER_OUTPUT_ADDRESS = 0x34;
-  constexpr uint8_t AXP_SDA_PIN = static_cast<uint8_t>(EDevicePins::AXPSdaPin);
-  constexpr uint8_t AXP_SCL_PIN = static_cast<uint8_t>(EDevicePins::AXPSclPin);
+  constexpr uint8_t AXP_SDA_PIN = static_cast<uint8_t>(EDevicePins::I2CSdaPin);
+  constexpr uint8_t AXP_SCL_PIN = static_cast<uint8_t>(EDevicePins::I2CSclPin);
 
-  constexpr uint8_t SD_MISO_PIN = static_cast<uint8_t>(EDevicePins::SDMisoPin);
-  constexpr uint8_t SD_MOSI_PIN = static_cast<uint8_t>(EDevicePins::SDMosiPin);
-  constexpr uint8_t SD_SCK_PIN = static_cast<uint8_t>(EDevicePins::SDSckPin);
-  constexpr uint8_t SD_CS_PIN = static_cast<uint8_t>(EDevicePins::SDCsPin);
+  constexpr uint8_t SD_MISO_PIN = static_cast<uint8_t>(EDevicePins::MisoPin);
+  constexpr uint8_t SD_MOSI_PIN = static_cast<uint8_t>(EDevicePins::MosiPin);
+  constexpr uint8_t SD_SCK_PIN = static_cast<uint8_t>(EDevicePins::SckPin);
+  constexpr uint8_t SD_CS_PIN = static_cast<uint8_t>(EDevicePins::CsPin);
   
   constexpr uint32_t SECONDS_PER_MINUTE = 60;
   constexpr uint32_t SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE;
@@ -308,37 +362,39 @@ namespace App {
 
 #include <App/Utils.h>
 #include <App/Configuration.h>
+#include <App/Led.h>
+#include <App/Button.h>
 #include <App/Storages/LittleFS.h>
 #include <App/Storages/SDCard.h>
 #include <App/Storage.h>
 #include <App/NTP.h>
-#include <App/RTCTime.h>
+#include <App/RTC.h>
 #include <App/Battery.h>
 #include <App/Connection.h>
-#include <App/Button.h>
-#include <App/Led.h>
-#include <App/Display.h>
 #include <App/Firmware.h>
-#include <App/Dashboard.h>
-
+#include <App/Sound.h>
+#include <Sounds/LowBatterySound.h>
+#include <Sounds/MaintenanceSound.h>
+#include <App/Display.h>
 #include <Fonts/OpenSans11.h>
 #include <Fonts/OpenSans11b.h>
 #include <Fonts/OpenSans13.h>
 #include <Fonts/OpenSans13b.h>
-
 #include <Images/DefaultImage.h>
+#include <App/Dashboard.h>
 
 #define CFG Configuration_::Instance()
 #define UTL Utils_::Instance()
+#define BTN Button_::Instance()
+#define LED Led_::Instance()
 #define LFS LittleFS_::Instance()
 #define SDC SDCard_::Instance()
 #define STG Storage_::Instance()
 #define NTP NTP_::Instance()
-#define RTC RTCTime_::Instance()
+#define RTC RTC_::Instance()
 #define BAT Battery_::Instance()
+#define SND Sound_::Instance()
 #define CON Connection_::Instance()
-#define BTN Button_::Instance()
-#define LED Led_::Instance()
 #define DSP Display_::Instance()
 #define FWU Firmware_::Instance()
 #define DSH Dashboard_::Instance()
