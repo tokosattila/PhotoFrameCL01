@@ -29,7 +29,7 @@ namespace App {
       static std::vector<const char *> GetFilesInDir(const char *tDir, const char *tExt);
       static void InvalidateFileCache();
       void BootstrapVault(bool tVerbose = false);
-      void PrintListDir();
+      void PrintListDir(size_t tMaxLines = 15);
       void End();
       size_t GetListPos() { return mListPos; };
       uint64_t TotalBytes();

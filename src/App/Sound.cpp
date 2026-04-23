@@ -51,7 +51,7 @@ namespace App {
       Wire.setClock(100000UL);
     }
     const bool tI2sReady = ConfigureI2s();
-    if (tI2sReady) vTaskDelay(300 / portTICK_PERIOD_MS);
+    if (tI2sReady) vTaskDelay(120 / portTICK_PERIOD_MS);
     const bool tCodecFound = TryI2C();
     const bool tCodecConfigured = tCodecFound && ConfigureCodec();
     mAvailable = tI2sReady && tCodecFound && tCodecConfigured;
@@ -279,17 +279,22 @@ namespace App {
     const size_t tTotalFrames = static_cast<size_t>((mRuntimeSampleRate * tDurationMs) / 1000UL);
     const float tAmplitude = static_cast<float>(tAmplitudePct) / 100.0f;
     const float tStep = (2.0f * PI * static_cast<float>(tFrequencyHz)) / static_cast<float>(mRuntimeSampleRate);
-    float tPhase = 0.0f;
+    const float tSinStep = sinf(tStep);
+    const float tCosStep = cosf(tStep);
+    float tSin = 0.0f;
+    float tCos = 1.0f;
     size_t tWrittenFrames = 0;
     while (tWrittenFrames < tTotalFrames) {
       const size_t tFramesThisChunk = std::min(kFramesPerChunk, tTotalFrames - tWrittenFrames);
       for (size_t tFrame = 0; tFrame < tFramesThisChunk; tFrame++) {
-        const float tWave = sinf(tPhase) * tAmplitude;
+        const float tWave = tSin * tAmplitude;
         const int16_t tSample = static_cast<int16_t>(tWave * 32767.0f);
         tBuffer[tFrame * 2] = tSample;
         tBuffer[tFrame * 2 + 1] = tSample;
-        tPhase += tStep;
-        if (tPhase >= (2.0f * PI)) tPhase -= (2.0f * PI);
+        const float tNextSin = (tSin * tCosStep) + (tCos * tSinStep);
+        const float tNextCos = (tCos * tCosStep) - (tSin * tSinStep);
+        tSin = tNextSin;
+        tCos = tNextCos;
       }
       size_t tBytesWritten = 0;
       const size_t tBytes = tFramesThisChunk * sizeof(int16_t) * 2;
@@ -308,10 +313,6 @@ namespace App {
     if (!tSteps || tCount == 0) return false;
     if (!Init()) {
       xLOG("Sound playback failed, sound init unavailable");
-      return false;
-    }
-    if (i2s_set_clk(kI2sPort, mRuntimeSampleRate, I2S_BITS_PER_SAMPLE_16BIT, I2S_CHANNEL_STEREO) != ESP_OK) {
-      xLOG("Sound playback set clock failed, sr:%lu", static_cast<unsigned long>(mRuntimeSampleRate));
       return false;
     }
     digitalWrite(kCodecPaPin, mRuntimeCodecPaActiveHigh ? HIGH : LOW);

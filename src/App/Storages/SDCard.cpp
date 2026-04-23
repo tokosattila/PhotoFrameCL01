@@ -314,18 +314,24 @@ namespace App {
     if (tVerbose) PrintListDir();
   }
 
-  void SDCard_::PrintListDir() {
+  void SDCard_::PrintListDir(size_t tMaxLines) {
     xLOG_PL();
     UTL.PrintInfo("SDCARD FILE STRUCTURE", EUtilsInfoType::Header);
     UTL.PrintInfo("", EUtilsInfoType::Line);
     const char *tData = ListDir("/");
     char *tLine = (char*)tData;
     char *tEnd = (char*)tData + mListPos;
+    size_t tPrintedLines = 0;
     while (tLine < tEnd) {
+      if (tPrintedLines >= tMaxLines) {
+        UTL.PrintInfo("...", EUtilsInfoType::Cell);
+        break;
+      }
       char *tNext = tLine;
       while (tNext < tEnd && *tNext != '\r' && *tNext != '\n') ++tNext;
       char tTemp = *tNext; *tNext = '\0';
       UTL.PrintInfo(tLine, EUtilsInfoType::Cell);
+      ++tPrintedLines;
       if (tTemp) *tNext = tTemp;
       tLine = tNext + (tTemp ? (tTemp == '\r' && tNext[1] == '\n' ? 2 : 1) : 0);
     }
