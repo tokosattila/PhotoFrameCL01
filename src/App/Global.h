@@ -385,14 +385,14 @@ namespace App {
 #include <App/Connection.h>
 #include <App/Firmware.h>
 #include <App/Sound.h>
-#include <Sounds/LowBatterySound.h>
-#include <Sounds/MaintenanceSound.h>
+#include <App/Sounds/LowBatterySound.h>
+#include <App/Sounds/MaintenanceSound.h>
 #include <App/Display.h>
-#include <Fonts/OpenSans11.h>
-#include <Fonts/OpenSans11b.h>
-#include <Fonts/OpenSans13.h>
-#include <Fonts/OpenSans13b.h>
-#include <Images/DefaultImage.h>
+#include <App/Fonts/OpenSans11.h>
+#include <App/Fonts/OpenSans11b.h>
+#include <App/Fonts/OpenSans13.h>
+#include <App/Fonts/OpenSans13b.h>
+#include <App/Images/DefaultImage.h>
 #include <App/Dashboard.h>
 
 #define CFG Configuration_::Instance()
