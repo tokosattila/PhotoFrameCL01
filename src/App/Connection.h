@@ -19,6 +19,7 @@ namespace App {
       const char *GetIpAddress();
       bool HasActiveWifiClient() const;
       void Callback(FConnectionCallback tCallback);
+      bool TryConnectApSta();
     private:
       Connection_();
       Connection_(const Connection_&) = delete;

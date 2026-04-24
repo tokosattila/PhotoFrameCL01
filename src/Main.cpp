@@ -192,7 +192,7 @@ class Application {
     void MaintenanceMode() {
       ReloadConfig();
       const bool tBatteryConnected = BAT.IsAvailable() && BAT.IsBatteryConnected();
-      UTL.SetCPUFrequency(tBatteryConnected ? ECPUFrequency::F160MHz : ECPUFrequency::F240MHz);
+      UTL.SetCPUFrequency(tBatteryConnected ? ECPUFrequency::F240MHz : ECPUFrequency::F240MHz);
       LED.On(mCfg.Device.ActLedPin);
       {
         char tText[45] = "";
@@ -249,14 +249,12 @@ class Application {
         DSP.SetFont(&OpenSans13B);
         snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Connect to Wifi AP Mode to SSID: %s", mCfg.Connection.ApSsid.c_str());
         DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
-        if (!tBatteryConnected) DSP.Update();
-        else xLOG("Skipping maintenance e-paper update in AP mode on battery");
       }
+      DSP.Update();
       xLOG_FLUSH();
       CON.Init(true);
       vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
       DSH.Init([]() {
-        Guard tLock;
         DSH.Stop();
         DSP.OffAll();
         STG.End();
@@ -264,7 +262,6 @@ class Application {
         vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
         esp_restart();
       }, []() {
-        Guard tLock;
         DSH.Stop();
         DSP.OffAll();
         STG.End();
@@ -279,7 +276,13 @@ class Application {
         sDashboardTaskStarted = true;
       }
       bool tMaintenanceSoundPlayed = false;
-      while (!CON.HasActiveWifiClient()) vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
+      const uint32_t tWifiTimeoutMs = 5 * ONE_SECOND_MS;
+      const uint32_t tWifiStartMs = millis();
+      while (!CON.HasActiveWifiClient() && (millis() - tWifiStartMs) < tWifiTimeoutMs) {
+        vTaskDelay(DELAY_MEDIUM_MS / portTICK_PERIOD_MS);
+      }
+      if (!CON.HasActiveWifiClient()) xLOG("WiFi client connect timeout");
+      vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
       if (!tMaintenanceSoundPlayed) {
         tMaintenanceSoundPlayed = SND.Play(kMaintenanceSound);
         xLOG("Sound playback → %s", tMaintenanceSoundPlayed ? "Ok" : "Failed");
@@ -291,7 +294,7 @@ class Application {
       const char *tHostSuffix = mCfg.Connection.MdnsEnable ? ".local/" : "/";
       snprintf(tTitleBuffer, sizeof(tTitleBuffer), "Admin URL: http://%s%s", tHost ? tHost : "", tHostSuffix);
       DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
-      if (!tIsApMode) DSP.Update();
+      DSP.Update();
       UTL.PrintMemoryInfo();
       while (true) vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
     }

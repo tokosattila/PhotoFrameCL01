@@ -53,10 +53,12 @@
 #include <JPEGDEC.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncWebSocket.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 namespace App {
 
-  #define PRODUCTION false
+  #define PRODUCTION true
   
   #define DEFINE_TAG(tTag) static constexpr const char *TAG = tTag
 

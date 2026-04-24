@@ -1260,6 +1260,9 @@ namespace App {
     mServer.on("/api/images/copy", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       HandleImageCopy(tRequest);
     });
+    mServer.on("/api/images/import-url", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      HandleImageImportUrl(tRequest);
+    });
     mServer.on("/api/images/delete", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       String *tBody = static_cast<String *>(tRequest ? tRequest->_tempObject : nullptr);
       const String tJsonBody = tBody ? *tBody : String();
@@ -1662,7 +1665,9 @@ namespace App {
       tJson += String(tConfig.Display.JpgBlueGain);
       tJson += "}},\"Storage\":{\"JpegQuality\":";
       tJson += String(DASHBOARD_IMG_JPEG_QUALITY, 2);
-      tJson += "},\"Paths\":{\"ImagesPath\":\"/api/images/\",\"ThumbsPath\":\"/api/images/thumbs/\"},\"ApiEndpoints\":{\"Upload\":\"/api/images/upload\",\"UploadThumb\":\"/api/images/upload?type=thumb\",\"Swap\":\"/api/images/swap\",\"SetDefault\":\"/api/images/default\",\"Copy\":\"/api/images/copy\",\"Delete\":\"/api/images/delete\"}}";
+      tJson += "},\"InternetEnable\":";
+      tJson += tConfig.Connection.ApModeEnable ? "false" : "true";
+      tJson += ",\"Paths\":{\"ImagesPath\":\"/api/images/\",\"ThumbsPath\":\"/api/images/thumbs/\"},\"ApiEndpoints\":{\"Upload\":\"/api/images/upload\",\"UploadThumb\":\"/api/images/upload?type=thumb\",\"Swap\":\"/api/images/swap\",\"SetDefault\":\"/api/images/default\",\"Copy\":\"/api/images/copy\",\"Delete\":\"/api/images/delete\"}}";
     } else tJson += "{}";
     tJson += "}";
     DashboardUtils_::JsonResponse(tRequest, 200, tJson.c_str());
@@ -2138,6 +2143,108 @@ namespace App {
     BuildImagesJson(tJson, kImagesJsonSize, tDirectoryPath);
     DashboardUtils_::JsonResponse(tRequest, 200, tJson);
     free(tJson);
+  }
+
+  void Dashboard_::HandleImageImportUrl(AsyncWebServerRequest *tRequest) {
+    if (!AuthorizeRequest(tRequest)) {
+      DashboardUtils_::UnauthorizedResponse(tRequest);
+      return;
+    }
+    String tUrlValue;
+    TryGetRequestValue(tRequest, "url", tUrlValue);
+    tUrlValue.trim();
+    if (!tUrlValue.length() ||
+        (!tUrlValue.startsWith("http://") && !tUrlValue.startsWith("https://"))) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "import_image_url_failed");
+      return;
+    }
+    SAppConfig tConfig = CFG.Get<SAppConfig>();
+    const String tStorageKey = GetDefaultStorageKey(tConfig.Storage);
+    char tDirectoryPath[64] = "";
+    snprintf(tDirectoryPath, sizeof(tDirectoryPath), "/%s", tConfig.Display.ImagesDir.c_str());
+    char tFileName[kMaxUploadFileNameLength + 1] = "";
+    if (!ResolveNextUploadFileName(tStorageKey, tDirectoryPath, tFileName, sizeof(tFileName))) {
+      DashboardUtils_::ErrorResponse(tRequest, 500, "queue_save_error");
+      return;
+    }
+    char tFilePath[192] = "";
+    snprintf(tFilePath, sizeof(tFilePath), "%s/%s", tDirectoryPath, tFileName);
+    if (!CON.TryConnectApSta()) {
+      DashboardUtils_::ErrorResponse(tRequest, 503, "import_image_url_failed");
+      return;
+    }
+    const bool tIsHttps = tUrlValue.startsWith("https://");
+    HTTPClient tHttpClient;
+    tHttpClient.setTimeout(20000);
+    tHttpClient.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    bool tStarted = false;
+    WiFiClient *tWifiClient = nullptr;
+    WiFiClientSecure *tSecureClient = nullptr;
+    if (tIsHttps) {
+      tSecureClient = new WiFiClientSecure();
+      tSecureClient->setInsecure();
+      tStarted = tHttpClient.begin(*tSecureClient, tUrlValue);
+    } else {
+      tWifiClient = new WiFiClient();
+      tStarted = tHttpClient.begin(*tWifiClient, tUrlValue);
+    }
+    if (!tStarted) {
+      delete tSecureClient;
+      delete tWifiClient;
+      DashboardUtils_::ErrorResponse(tRequest, 400, "import_image_url_failed");
+      return;
+    }
+    const int tCode = tHttpClient.GET();
+    if (tCode != HTTP_CODE_OK) {
+      tHttpClient.end();
+      delete tSecureClient;
+      delete tWifiClient;
+      DashboardUtils_::ErrorResponse(tRequest, 502, "import_image_url_failed");
+      return;
+    }
+    File tFile = OpenStorageFileByKey(tStorageKey, tFilePath, FILE_WRITE, true);
+    if (!tFile) {
+      tHttpClient.end();
+      delete tSecureClient;
+      delete tWifiClient;
+      DashboardUtils_::ErrorResponse(tRequest, 500, "queue_save_error");
+      return;
+    }
+    WiFiClient *tStream = tHttpClient.getStreamPtr();
+    int tRemaining = tHttpClient.getSize();
+    constexpr size_t kChunkSize = 512;
+    constexpr uint32_t kMaxBytes = 10U * 1024U * 1024U;
+    uint8_t tChunk[kChunkSize];
+    size_t tWritten = 0;
+    while (tWritten < kMaxBytes) {
+      if (tRemaining == 0) break;
+      const int kToRead = (tRemaining > 0)
+        ? min(static_cast<int>(kChunkSize), tRemaining)
+        : static_cast<int>(kChunkSize);
+      const int kRead = tStream->readBytes(tChunk, static_cast<size_t>(kToRead));
+      if (kRead <= 0) break;
+      tFile.write(tChunk, static_cast<size_t>(kRead));
+      tWritten += static_cast<size_t>(kRead);
+      if (tRemaining > 0) tRemaining -= kRead;
+    }
+    tFile.flush();
+    tFile.close();
+    tHttpClient.end();
+    delete tSecureClient;
+    delete tWifiClient;
+    if (!tWritten) {
+      DeleteStorageFileByKey(tStorageKey, tFilePath);
+      DashboardUtils_::ErrorResponse(tRequest, 502, "import_image_url_failed");
+      return;
+    }
+    SDC.InvalidateFileCache();
+    LFS.InvalidateFileCache();
+    MarkGalleryCacheDirty();
+    char tJson[256] = "";
+    snprintf(tJson, sizeof(tJson),
+      "{\"ok\":true,\"message\":\"queue_save_success\",\"filename\":\"%s\"}",
+      tFileName);
+    DashboardUtils_::JsonResponse(tRequest, 200, tJson);
   }
 
   void Dashboard_::HandleImageDelete(AsyncWebServerRequest *tRequest, const String &tBody) {

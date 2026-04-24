@@ -207,6 +207,34 @@ namespace App {
     return false;
   }
 
+  bool Connection_::TryConnectApSta() {
+    if (mWiFi->status() == WL_CONNECTED) return true;
+    if (mCfg.Connection.StaSsid.isEmpty()) return false;
+    const wifi_mode_t tMode = mWiFi->getMode();
+    if (!(tMode & WIFI_MODE_AP)) return false;
+    xLOG("Switching to AP+STA for internet access → %s", mCfg.Connection.StaSsid.c_str());
+    mWiFi->mode(WIFI_AP_STA);
+    mWiFi->useStaticBuffers(true);
+    if (mCfg.Connection.StaIpEnable) {
+      IPAddress tIp, tGateway, tSubnet, tDns1, tDns2;
+      tIp.fromString(mCfg.Connection.StaIp.c_str());
+      tGateway.fromString(mCfg.Connection.StaGateway.c_str());
+      tSubnet.fromString(mCfg.Connection.StaSubnet.c_str());
+      tDns1.fromString(mCfg.Connection.StaPrimaryDns.c_str());
+      tDns2.fromString(mCfg.Connection.StaSecondaryDns.c_str());
+      mWiFi->config(tIp, tGateway, tSubnet, tDns1, tDns2);
+    }
+    mWiFi->hostname(mCfg.Connection.MdnsName);
+    mWiFi->begin(mCfg.Connection.StaSsid.c_str(), mCfg.Connection.StaPassword.c_str());
+    uint8_t tRetry = 0;
+    while (mWiFi->status() != WL_CONNECTED && tRetry++ < WIFI_RETRY_COUNT)
+      vTaskDelay(DELAY_HALF_SEC_MS / portTICK_PERIOD_MS);
+    const bool tConnected = mWiFi->status() == WL_CONNECTED;
+    xLOG("AP+STA internet %s", tConnected ? "connected" : "failed");
+    if (!tConnected) mWiFi->mode(WIFI_MODE_AP);
+    return tConnected;
+  }
+
   void Connection_::SwitchToFallbackApMode(bool tPersistConfig) {
     if (!mCfg.Connection.FallbackApSsid.length()) {
       xLOG("Fallback AP skipped, missing fallback SSID");

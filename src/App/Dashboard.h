@@ -175,6 +175,7 @@ namespace App {
       void ParseConfigSave(AsyncWebServerRequest *tRequest, SAppConfig &tConfig);
       void HandleImagesList(AsyncWebServerRequest *tRequest);
       void HandleImageDelete(AsyncWebServerRequest *tRequest, const String &tBody);
+      void HandleImageImportUrl(AsyncWebServerRequest *tRequest);
       void HandleImageCopy(AsyncWebServerRequest *tRequest);
       void HandleImageUpload(AsyncWebServerRequest *tRequest, const String &tFilename, size_t tIndex, uint8_t *tData, size_t tLength, bool tFinal);
       void HandleImageDone(AsyncWebServerRequest *tRequest);

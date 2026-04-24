@@ -508,11 +508,14 @@ namespace App {
     xLOG("Next wake-up → %llu %s\n\n", tDisplay, tUnit);
     const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
     const uint8_t tWakePin = static_cast<uint8_t>(mCfg.Device.SettingPin);
-    const uint64_t tWakeMask = (1ULL << tNextImgPin) | (1ULL << tWakePin);
-    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tWakePin));
-    rtc_gpio_pullup_en(static_cast<gpio_num_t>(tWakePin));
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tNextImgPin));
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(tNextImgPin));
+    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(tNextImgPin), 0);
+    const uint64_t tWakeMask = (1ULL << tWakePin);
+    rtc_gpio_pullup_dis(static_cast<gpio_num_t>(tWakePin));
+    rtc_gpio_pulldown_en(static_cast<gpio_num_t>(tWakePin));
+    esp_sleep_enable_ext1_wakeup(tWakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
     esp_sleep_enable_timer_wakeup(tDelaySec * tSecToUs);
-    esp_sleep_enable_ext1_wakeup(tWakeMask, ESP_EXT1_WAKEUP_ANY_LOW);
     esp_deep_sleep_start();
   }  
 
