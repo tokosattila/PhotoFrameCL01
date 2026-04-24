@@ -41,6 +41,8 @@ namespace App {
       uint64_t SecondsUntilHour(uint8_t tTargetHour);
       static bool WasWokenByPin(uint8_t tPin);
       static bool SecureStrcmp(const char *tA, const char *tB);
+      static const char *GetLeafName(const char *tPath);
+      static bool EqualsIgnoreCase(const char *tLeft, const char *tRight);
       static uint32_t SafeAtoul(const char *tStr, uint32_t tMinVal, uint32_t tMaxVal, uint32_t tDefaultVal);
       static bool HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs);
     private:

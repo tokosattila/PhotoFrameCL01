@@ -38,6 +38,25 @@ namespace App {
     return tDiff == 0;
   }
 
+  const char *Utils_::GetLeafName(const char *tPath) {
+    if (!tPath) return "";
+    const char *tSlash = strrchr(tPath, '/');
+    return tSlash ? (tSlash + 1) : tPath;
+  }
+
+  bool Utils_::EqualsIgnoreCase(const char *tLeft, const char *tRight) {
+    const char *tL = tLeft ? tLeft : "";
+    const char *tR = tRight ? tRight : "";
+    while (*tL && *tR) {
+      const char tLc = static_cast<char>(tolower(static_cast<unsigned char>(*tL)));
+      const char tRc = static_cast<char>(tolower(static_cast<unsigned char>(*tR)));
+      if (tLc != tRc) return false;
+      ++tL;
+      ++tR;
+    }
+    return *tL == '\0' && *tR == '\0';
+  }
+
   uint32_t Utils_::SafeAtoul(const char *tStr, uint32_t tMinVal, uint32_t tMaxVal, uint32_t tDefaultVal) {
     if (!tStr || *tStr == '\0' || *tStr == ' ' || *tStr == '\t') return tDefaultVal;
     char *tEndPtr = nullptr;
@@ -328,19 +347,11 @@ namespace App {
     Guard tLock;
     char tText[mPrintInfoWidth - 4] = "";
     char tFreeHeap[16] = "";
-    char tLargestFreeBlock[16] = "";
-    char tMinimumFreeSize[16] = "";
     xLOG_PL();
     PrintInfo("MEMORY INFO", EUtilsInfoType::Header);
     PrintInfo("", EUtilsInfoType::Line);
     ByteToReadableSize(ESP.getFreeHeap(), tFreeHeap, sizeof(tFreeHeap));
     snprintf(tText, sizeof(tText), "Free heap: %s", tFreeHeap);
-    PrintInfo(tText);
-    ByteToReadableSize(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), tLargestFreeBlock, sizeof(tLargestFreeBlock));
-    snprintf(tText, sizeof(tText), "Largest free block: %s", tLargestFreeBlock);
-    PrintInfo(tText);
-    ByteToReadableSize(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), tMinimumFreeSize, sizeof(tMinimumFreeSize));
-    snprintf(tText, sizeof(tText), "Min. ever free: %s", tMinimumFreeSize);
     PrintInfo(tText);
     PrintInfo("", EUtilsInfoType::Footer);
   }

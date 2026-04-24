@@ -37,6 +37,10 @@ namespace App {
       static constexpr const char *kNvsDisplayBrightness = "dsp.jpg.brght";
       static constexpr const char *kNvsDisplayContrast = "dsp.jpg.cntrst";
       static constexpr const char *kNvsDisplayGamma = "dsp.jpg.gmm";
+      static constexpr const char *kNvsDisplaySaturation = "dsp.jpg.sat";
+      static constexpr const char *kNvsDisplayRedGain = "dsp.jpg.red";
+      static constexpr const char *kNvsDisplayGreenGain = "dsp.jpg.grn";
+      static constexpr const char *kNvsDisplayBlueGain = "dsp.jpg.blu";
       static constexpr const char *kNvsDisplayRotate = "dsp.rotate";
       static constexpr const char *kNvsDisplayFile = "dsp.file";
       static constexpr const char *kNvsDisplayImageUpdatedAt = "dsp.file.upd";

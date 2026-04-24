@@ -391,6 +391,9 @@ namespace App {
       tFile = tRoot.openNextFile();
     }
     tRoot.close();
+    std::sort(mFileList.begin(), mFileList.end(), [](const char *tLeft, const char *tRight) {
+      return strcasecmp(Utils_::GetLeafName(tLeft), Utils_::GetLeafName(tRight)) < 0;
+    });
     mFilesCount = mFileList.size();
     return mFileList;
   }
@@ -407,17 +410,24 @@ namespace App {
     mFilesCount = mFileList.size(); 
     if (mFilesCount == 0) return nullptr;    
     size_t tNextIndex = 0;
+    bool tFoundCurrent = false;
     if (tCurrentFilename && tCurrentFilename[0]) {
-      const char *tName = strrchr(tCurrentFilename, '/');
-      tName = tName ? tName + 1 : tCurrentFilename;
-      char tSearch[128];
-      snprintf(tSearch, sizeof(tSearch), "%s", tName);
+      const char *tSearch = Utils_::GetLeafName(tCurrentFilename);
       for (size_t i = 0; i < mFilesCount; ++i) {
-        const char *tEntryName = strrchr(mFileList[i], '/');
-        tEntryName = tEntryName ? tEntryName + 1 : mFileList[i];
-        if (strcmp(tEntryName, tSearch) == 0) {
+        const char *tEntryName = Utils_::GetLeafName(mFileList[i]);
+        if (Utils_::EqualsIgnoreCase(tEntryName, tSearch)) {
+          tFoundCurrent = true;
           tNextIndex = (i + 1) % mFilesCount;
           break;
+        }
+      }
+      if (!tFoundCurrent && mFilesCount > 1) {
+        for (size_t i = 0; i < mFilesCount; ++i) {
+          const char *tEntryName = Utils_::GetLeafName(mFileList[i]);
+          if (!Utils_::EqualsIgnoreCase(tEntryName, tSearch)) {
+            tNextIndex = i;
+            break;
+          }
         }
       }
     }

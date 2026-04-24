@@ -595,6 +595,93 @@ bool SplitPathAndFile(const char *tSpec, char *tDir, size_t tDirSize, char *tFil
 }
 
 // ============================================================================
+// Standalone: GetLeafName / EqualsIgnoreCase (extracted from Utils.cpp)
+// ============================================================================
+
+const char *GetLeafName(const char *tPath) {
+  if (!tPath) return nullptr;
+  const char *tSlash = strrchr(tPath, '/');
+  return tSlash ? tSlash + 1 : tPath;
+}
+
+bool EqualsIgnoreCase(const char *tLeft, const char *tRight) {
+  if (!tLeft || !tRight) return false;
+  while (*tLeft && *tRight) {
+    if (tolower((unsigned char)*tLeft) != tolower((unsigned char)*tRight)) return false;
+    ++tLeft;
+    ++tRight;
+  }
+  return *tLeft == '\0' && *tRight == '\0';
+}
+
+// ============================================================================
+// GetLeafName Tests
+// ============================================================================
+
+void test_GetLeafName_simple_path() {
+  TEST_ASSERT_EQUAL_STRING("photo.jpg", GetLeafName("/images/photo.jpg"));
+}
+
+void test_GetLeafName_deep_path() {
+  TEST_ASSERT_EQUAL_STRING("file.txt", GetLeafName("/a/b/c/file.txt"));
+}
+
+void test_GetLeafName_root_file() {
+  TEST_ASSERT_EQUAL_STRING("config.ini", GetLeafName("/config.ini"));
+}
+
+void test_GetLeafName_no_slash() {
+  TEST_ASSERT_EQUAL_STRING("plain.jpg", GetLeafName("plain.jpg"));
+}
+
+void test_GetLeafName_trailing_slash() {
+  TEST_ASSERT_EQUAL_STRING("", GetLeafName("/images/"));
+}
+
+void test_GetLeafName_null() {
+  TEST_ASSERT_NULL(GetLeafName(nullptr));
+}
+
+void test_GetLeafName_only_slash() {
+  TEST_ASSERT_EQUAL_STRING("", GetLeafName("/"));
+}
+
+// ============================================================================
+// EqualsIgnoreCase Tests
+// ============================================================================
+
+void test_EqualsIgnoreCase_identical() {
+  TEST_ASSERT_TRUE(EqualsIgnoreCase("photo.jpg", "photo.jpg"));
+}
+
+void test_EqualsIgnoreCase_mixed_case() {
+  TEST_ASSERT_TRUE(EqualsIgnoreCase("Photo.JPG", "photo.jpg"));
+  TEST_ASSERT_TRUE(EqualsIgnoreCase("ABC", "abc"));
+  TEST_ASSERT_TRUE(EqualsIgnoreCase("001pic.JPG", "001pic.jpg"));
+}
+
+void test_EqualsIgnoreCase_different_strings() {
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("photo.jpg", "other.jpg"));
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("abc", "abcd"));
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("abcd", "abc"));
+}
+
+void test_EqualsIgnoreCase_empty_strings() {
+  TEST_ASSERT_TRUE(EqualsIgnoreCase("", ""));
+}
+
+void test_EqualsIgnoreCase_null_inputs() {
+  TEST_ASSERT_FALSE(EqualsIgnoreCase(nullptr, "photo.jpg"));
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("photo.jpg", nullptr));
+  TEST_ASSERT_FALSE(EqualsIgnoreCase(nullptr, nullptr));
+}
+
+void test_EqualsIgnoreCase_one_empty() {
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("", "photo.jpg"));
+  TEST_ASSERT_FALSE(EqualsIgnoreCase("photo.jpg", ""));
+}
+
+// ============================================================================
 // SplitPathAndFile Tests
 // ============================================================================
 
@@ -737,6 +824,23 @@ int main(int argc, char **argv) {
   RUN_TEST(test_SplitPathAndFile_null_empty);
   RUN_TEST(test_SplitPathAndFile_dir_only);
   RUN_TEST(test_SplitPathAndFile_glob_pattern);
+
+  // GetLeafName tests
+  RUN_TEST(test_GetLeafName_simple_path);
+  RUN_TEST(test_GetLeafName_deep_path);
+  RUN_TEST(test_GetLeafName_root_file);
+  RUN_TEST(test_GetLeafName_no_slash);
+  RUN_TEST(test_GetLeafName_trailing_slash);
+  RUN_TEST(test_GetLeafName_null);
+  RUN_TEST(test_GetLeafName_only_slash);
+
+  // EqualsIgnoreCase tests
+  RUN_TEST(test_EqualsIgnoreCase_identical);
+  RUN_TEST(test_EqualsIgnoreCase_mixed_case);
+  RUN_TEST(test_EqualsIgnoreCase_different_strings);
+  RUN_TEST(test_EqualsIgnoreCase_empty_strings);
+  RUN_TEST(test_EqualsIgnoreCase_null_inputs);
+  RUN_TEST(test_EqualsIgnoreCase_one_empty);
   
   return UNITY_END();
 }

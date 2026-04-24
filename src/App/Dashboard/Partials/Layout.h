@@ -336,6 +336,10 @@ namespace App {
         SetInputValueByToken(tHtml, "__V_DSP_BRT__", String(tConfig.Display.JpgBrightness));
         SetInputValueByToken(tHtml, "__V_DSP_CON__", String(tConfig.Display.JpgContrast));
         SetInputValueByToken(tHtml, "__V_DSP_GAM__", String(tConfig.Display.JpgGamma));
+        SetInputValueByToken(tHtml, "__V_DSP_SAT__", String(tConfig.Display.JpgSaturation));
+        SetInputValueByToken(tHtml, "__V_DSP_RED__", String(tConfig.Display.JpgRedGain));
+        SetInputValueByToken(tHtml, "__V_DSP_GRN__", String(tConfig.Display.JpgGreenGain));
+        SetInputValueByToken(tHtml, "__V_DSP_BLU__", String(tConfig.Display.JpgBlueGain));
         SetSelectedByToken(tHtml, "__S_DSP_ROT__", String(tConfig.Display.Rotate));
       }
 

@@ -403,6 +403,8 @@ namespace App {
     if (!tNormalizedExtension.length()) tNormalizedExtension = String(DASHBOARD_IMG_EXT);
     if (!tNormalizedExtension.startsWith(".")) tNormalizedExtension = String(".") + tNormalizedExtension;
     if (tNormalizedExtension.length() > 10 || tNormalizedExtension.indexOf('/') >= 0 || tNormalizedExtension.indexOf('\\') >= 0) tNormalizedExtension = String(DASHBOARD_IMG_EXT);
+    if (tNormalizedExtension != ".jpg" && tNormalizedExtension != ".jpeg") tNormalizedExtension = String(".jpg");
+    else if (tNormalizedExtension == ".jpeg") tNormalizedExtension = String(".jpg");
     return tNormalizedExtension;
   }
 
@@ -784,6 +786,14 @@ namespace App {
       tJson += String(tConfig.Display.JpgContrast);
       tJson += ",\"Gamma\":";
       tJson += String(tConfig.Display.JpgGamma);
+      tJson += ",\"Saturation\":";
+      tJson += String(tConfig.Display.JpgSaturation);
+      tJson += ",\"RedGain\":";
+      tJson += String(tConfig.Display.JpgRedGain);
+      tJson += ",\"GreenGain\":";
+      tJson += String(tConfig.Display.JpgGreenGain);
+      tJson += ",\"BlueGain\":";
+      tJson += String(tConfig.Display.JpgBlueGain);
       tJson += ",\"Rotation\":";
       tJson += String(tConfig.Display.Rotate);
       tJson += "}";
@@ -1636,7 +1646,21 @@ namespace App {
       tJson += String(tDashboardRotate);
       tJson += ",\"ImageExt\":\"";
       tJson += EscapeJsonText(tDashboardImageExt);
-      tJson += "\"},\"Storage\":{\"JpegQuality\":";
+      tJson += "\",\"Display\":{\"Brightness\":";
+      tJson += String(tConfig.Display.JpgBrightness);
+      tJson += ",\"Contrast\":";
+      tJson += String(tConfig.Display.JpgContrast);
+      tJson += ",\"Gamma\":";
+      tJson += String(tConfig.Display.JpgGamma);
+      tJson += ",\"Saturation\":";
+      tJson += String(tConfig.Display.JpgSaturation);
+      tJson += ",\"RedGain\":";
+      tJson += String(tConfig.Display.JpgRedGain);
+      tJson += ",\"GreenGain\":";
+      tJson += String(tConfig.Display.JpgGreenGain);
+      tJson += ",\"BlueGain\":";
+      tJson += String(tConfig.Display.JpgBlueGain);
+      tJson += "}},\"Storage\":{\"JpegQuality\":";
       tJson += String(DASHBOARD_IMG_JPEG_QUALITY, 2);
       tJson += "},\"Paths\":{\"ImagesPath\":\"/api/images/\",\"ThumbsPath\":\"/api/images/thumbs/\"},\"ApiEndpoints\":{\"Upload\":\"/api/images/upload\",\"UploadThumb\":\"/api/images/upload?type=thumb\",\"Swap\":\"/api/images/swap\",\"SetDefault\":\"/api/images/default\",\"Copy\":\"/api/images/copy\",\"Delete\":\"/api/images/delete\"}}";
     } else tJson += "{}";
@@ -1690,9 +1714,13 @@ namespace App {
     }
     SAppConfig tConfig = CFG.Get<SAppConfig>();
     String tValue;
-    if (TryGetRequestValue(tRequest, "Display[Brightness]", tValue)) tConfig.Display.JpgBrightness = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 100));
-    if (TryGetRequestValue(tRequest, "Display[Contrast]", tValue)) tConfig.Display.JpgContrast = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 100));
-    if (TryGetRequestValue(tRequest, "Display[Gamma]", tValue)) tConfig.Display.JpgGamma = static_cast<uint8_t>(constrain(tValue.toInt(), 1, 255));
+    if (TryGetRequestValue(tRequest, "Display[Brightness]", tValue)) tConfig.Display.JpgBrightness = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
+    if (TryGetRequestValue(tRequest, "Display[Contrast]", tValue)) tConfig.Display.JpgContrast = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
+    if (TryGetRequestValue(tRequest, "Display[Gamma]", tValue)) tConfig.Display.JpgGamma = static_cast<uint8_t>(constrain(tValue.toInt(), 1, 200));
+    if (TryGetRequestValue(tRequest, "Display[Saturation]", tValue)) tConfig.Display.JpgSaturation = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
+    if (TryGetRequestValue(tRequest, "Display[RedGain]", tValue)) tConfig.Display.JpgRedGain = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
+    if (TryGetRequestValue(tRequest, "Display[GreenGain]", tValue)) tConfig.Display.JpgGreenGain = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
+    if (TryGetRequestValue(tRequest, "Display[BlueGain]", tValue)) tConfig.Display.JpgBlueGain = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 200));
     if (TryGetRequestValue(tRequest, "Display[Rotation]", tValue)) tConfig.Display.Rotate = static_cast<uint16_t>(tValue.toInt());
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, "display_save_error");
@@ -2021,6 +2049,10 @@ namespace App {
     if (tHasParameter("display.brightness")) tConfig.Display.JpgBrightness = static_cast<uint8_t>(tGetParameter("display.brightness").toInt());
     if (tHasParameter("display.contrast")) tConfig.Display.JpgContrast = static_cast<uint8_t>(tGetParameter("display.contrast").toInt());
     if (tHasParameter("display.gamma")) tConfig.Display.JpgGamma = static_cast<uint8_t>(tGetParameter("display.gamma").toInt());
+    if (tHasParameter("display.saturation")) tConfig.Display.JpgSaturation = static_cast<uint8_t>(tGetParameter("display.saturation").toInt());
+    if (tHasParameter("display.red_gain")) tConfig.Display.JpgRedGain = static_cast<uint8_t>(tGetParameter("display.red_gain").toInt());
+    if (tHasParameter("display.green_gain")) tConfig.Display.JpgGreenGain = static_cast<uint8_t>(tGetParameter("display.green_gain").toInt());
+    if (tHasParameter("display.blue_gain")) tConfig.Display.JpgBlueGain = static_cast<uint8_t>(tGetParameter("display.blue_gain").toInt());
     if (tHasParameter("connection.ap_enable")) tConfig.Connection.ApModeEnable = tGetParameter("connection.ap_enable") == "1";
     if (tHasParameter("connection.ap_ssid")) tConfig.Connection.ApSsid = tGetParameter("connection.ap_ssid");
     if (tHasParameter("connection.ap_password")) tConfig.Connection.ApPassword = tGetParameter("connection.ap_password");
@@ -2605,7 +2637,7 @@ namespace App {
       if (tWritten > 0) tPosition += static_cast<size_t>(tWritten);
     };
     tAppend("{\"device\":{\"name\":\"%s\",\"version\":\"%s\"},", tConfig.Device.Name.c_str(), tConfig.Device.Version.c_str());
-    tAppend("\"display\":{\"rotate\":%u,\"brightness\":%u,\"contrast\":%u,\"gamma\":%u,\"current\":\"%s\"},", (unsigned)tConfig.Display.Rotate, (unsigned)tConfig.Display.JpgBrightness, (unsigned)tConfig.Display.JpgContrast, (unsigned)tConfig.Display.JpgGamma, tConfig.Display.CurrentFile.c_str());
+    tAppend("\"display\":{\"rotate\":%u,\"brightness\":%u,\"contrast\":%u,\"gamma\":%u,\"saturation\":%u,\"red_gain\":%u,\"green_gain\":%u,\"blue_gain\":%u,\"current\":\"%s\"},", (unsigned)tConfig.Display.Rotate, (unsigned)tConfig.Display.JpgBrightness, (unsigned)tConfig.Display.JpgContrast, (unsigned)tConfig.Display.JpgGamma, (unsigned)tConfig.Display.JpgSaturation, (unsigned)tConfig.Display.JpgRedGain, (unsigned)tConfig.Display.JpgGreenGain, (unsigned)tConfig.Display.JpgBlueGain, tConfig.Display.CurrentFile.c_str());
     tAppend("\"connection\":{\"ap_enable\":%s,\"ap_ssid\":\"%s\",\"ap_ip\":\"%s\",\"ap_gateway\":\"%s\",\"ap_subnet\":\"%s\",", tConfig.Connection.ApModeEnable ? "true" : "false", tConfig.Connection.ApSsid.c_str(), tConfig.Connection.ApIp.c_str(), tConfig.Connection.ApGateway.c_str(), tConfig.Connection.ApSubnet.c_str());
     tAppend("\"sta_ssid\":\"%s\",\"sta_ip_enable\":%s,\"sta_ip\":\"%s\",\"sta_gateway\":\"%s\",\"sta_subnet\":\"%s\",", tConfig.Connection.StaSsid.c_str(), tConfig.Connection.StaIpEnable ? "true" : "false", tConfig.Connection.StaIp.c_str(), tConfig.Connection.StaGateway.c_str(), tConfig.Connection.StaSubnet.c_str());
     tAppend("\"sta_dns1\":\"%s\",\"sta_dns2\":\"%s\",\"mdns_enable\":%s,\"mdns_name\":\"%s\"},", tConfig.Connection.StaPrimaryDns.c_str(), tConfig.Connection.StaSecondaryDns.c_str(), tConfig.Connection.MdnsEnable ? "true" : "false", tConfig.Connection.MdnsName.c_str());

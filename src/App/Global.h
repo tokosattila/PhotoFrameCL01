@@ -224,13 +224,25 @@ namespace App {
     SNTPConfig() = default;
   };
 
+  constexpr uint8_t DISPLAY_JPG_BRIGHTNESS = 100;
+  constexpr uint8_t DISPLAY_JPG_CONTRAST = 100;
+  constexpr uint8_t DISPLAY_JPG_GAMMA = 100;
+  constexpr uint8_t DISPLAY_JPG_SATURATION = 100;
+  constexpr uint8_t DISPLAY_JPG_RED_GAIN = 100;
+  constexpr uint8_t DISPLAY_JPG_GREEN_GAIN = 100;
+  constexpr uint8_t DISPLAY_JPG_BLUE_GAIN = 100;
+
   struct SDisplayConfig {
     int32_t Width = 0;
     int32_t Height = 0;
     uint16_t Rotate = 0;
-    uint8_t JpgBrightness = 25;
-    uint8_t JpgContrast = 75;
-    uint8_t JpgGamma = 125;
+    uint8_t JpgBrightness = DISPLAY_JPG_BRIGHTNESS;
+    uint8_t JpgContrast = DISPLAY_JPG_CONTRAST;
+    uint8_t JpgGamma = DISPLAY_JPG_GAMMA;
+    uint8_t JpgSaturation = DISPLAY_JPG_SATURATION;
+    uint8_t JpgRedGain = DISPLAY_JPG_RED_GAIN;
+    uint8_t JpgGreenGain = DISPLAY_JPG_GREEN_GAIN;
+    uint8_t JpgBlueGain = DISPLAY_JPG_BLUE_GAIN;
     String ImagesDir;
     String ImageExt;
     String CurrentFile;
@@ -292,10 +304,10 @@ namespace App {
 
   constexpr uint16_t DASHBOARD_IMG_WIDTH = DISPLAY_WIDTH;
   constexpr uint16_t DASHBOARD_IMG_HEIGHT = DISPLAY_HEIGHT;
-  constexpr uint16_t DASHBOARD_IMG_THUMB_WIDTH = 150;
-  constexpr uint16_t DASHBOARD_IMG_THUMB_HEIGHT = 150;
+  constexpr uint16_t DASHBOARD_IMG_THUMB_WIDTH = 200;
+  constexpr uint16_t DASHBOARD_IMG_THUMB_HEIGHT = 200;
   constexpr uint16_t DASHBOARD_IMG_ROTATE = DISPLAY_ROTATE;
-  constexpr float DASHBOARD_IMG_JPEG_QUALITY = 0.65f;
+  constexpr float DASHBOARD_IMG_JPEG_QUALITY = 0.95f;
   constexpr const char *DASHBOARD_IMG_EXT = IMAGE_EXT;
 
   constexpr uint8_t NEXT_IMG_PIN = static_cast<uint8_t>(EDevicePins::Btn1);

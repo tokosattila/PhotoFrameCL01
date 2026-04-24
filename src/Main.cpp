@@ -41,7 +41,7 @@ class Application {
           UTL.PrintPartitionInfo();
         }
       #endif
-      if (psramFound()) heap_caps_malloc_extmem_enable(512);
+      if (psramFound()) heap_caps_malloc_extmem_enable(1024);
       if (!mMutex) mMutex = xSemaphoreCreateRecursiveMutex();
       gBootCount++;
       if(!CFG.Init()) return;
@@ -64,12 +64,14 @@ class Application {
       const bool tBatteryConnected = tBatteryAvailable && BAT.IsBatteryConnected();
       if (!tBatteryConnected) UTL.DisableBrownout();
       SND.Init(true);
-      SND.SetVolume(40);
-      const bool tLowBatteryDetected = BAT.IsLowBattery();
-      if (tLowBatteryDetected) {
-        LowBatteryMode();
-        return;
-      }
+      SND.SetVolume(80);
+      #if PRODUCTION
+        const bool tLowBatteryDetected = BAT.IsLowBattery();
+        if (tLowBatteryDetected) {
+          LowBatteryMode();
+          return;
+        }
+      #endif
       LED.AddPin(mCfg.Device.ActLedPin, "[act led]");
       LED.Off(mCfg.Device.ActLedPin);
       #if !PRODUCTION
@@ -96,9 +98,8 @@ class Application {
       #else
         const bool tMaintenanceRequested = (gMaintenanceBootRequest == kMaintenanceBootMagic);
         gMaintenanceBootRequest = 0;
-        MaintenanceMode();
-        /*if (tMaintenanceRequested || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
-        else PhotoFrameMode();*/
+        if (tMaintenanceRequested || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
+        else PhotoFrameMode();
       #endif
     }
 
@@ -107,7 +108,6 @@ class Application {
     }
     
   private:
-
     Application() = default;
     SemaphoreHandle_t mMutex = nullptr;
     SAppConfig mCfg {};

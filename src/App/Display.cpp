@@ -137,43 +137,6 @@ namespace App {
     }
   }
 
-  void Display_::EnsureJpgToneLut() {
-    uint8_t tBrightness = mCfg.JpgBrightness;
-    uint8_t tContrast = mCfg.JpgContrast;
-    uint8_t tGamma = mCfg.JpgGamma;
-    if (mJpgToneLutReady && tBrightness == mJpgToneLutBrightness && tContrast == mJpgToneLutContrast && tGamma == mJpgToneLutGamma) {
-      return;
-    }
-    auto tApplyTone = [tBrightness, tContrast, tGamma](uint8_t tChannel) -> uint8_t {
-      int32_t tValue = static_cast<int32_t>(tChannel);
-      tValue = 128 + ((tValue - 128) * static_cast<int32_t>(tContrast)) / 100;
-      tValue += (static_cast<int32_t>(tBrightness) * 255) / 100;
-      tValue = std::max<int32_t>(0, std::min<int32_t>(255, tValue));
-      uint8_t tSafeGamma = (tGamma == 0) ? 1 : tGamma;
-      if (tSafeGamma != 100) {
-        float tNormalized = static_cast<float>(tValue) / 255.0f;
-        float tGammaCorrected = powf(tNormalized, 100.0f / static_cast<float>(tSafeGamma));
-        tValue = static_cast<int32_t>(tGammaCorrected * 255.0f + 0.5f);
-        tValue = std::max<int32_t>(0, std::min<int32_t>(255, tValue));
-      }
-      return static_cast<uint8_t>(tValue);
-    };
-    for (uint16_t tIndex = 0; tIndex < 32; tIndex++) {
-      uint8_t tSource8 = static_cast<uint8_t>((tIndex * 255 + 15) / 31);
-      uint8_t tCorrected8 = tApplyTone(tSource8);
-      mJpgToneLut5[tIndex] = static_cast<uint8_t>((tCorrected8 * 31 + 127) / 255);
-    }
-    for (uint16_t tIndex = 0; tIndex < 64; tIndex++) {
-      uint8_t tSource8 = static_cast<uint8_t>((tIndex * 255 + 31) / 63);
-      uint8_t tCorrected8 = tApplyTone(tSource8);
-      mJpgToneLut6[tIndex] = static_cast<uint8_t>((tCorrected8 * 63 + 127) / 255);
-    }
-    mJpgToneLutBrightness = tBrightness;
-    mJpgToneLutContrast = tContrast;
-    mJpgToneLutGamma = tGamma;
-    mJpgToneLutReady = true;
-  }
-
   int32_t Display_::GetCanvasWidthUnsafe() const {
     if (mDisplayRotate == EDisplayRotate::Rotate90 || mDisplayRotate == EDisplayRotate::Rotate270) return mCfg.Height;
     return mCfg.Width;
@@ -498,18 +461,36 @@ namespace App {
   }
 
   int IRAM_ATTR Display_::JpegDrawCallback(JPEGDRAW *tDraw) {
-    Display_ *tSelf = &Instance();
-    if (!tSelf->mFrameBuffer || !tDraw) return 0;
-    tSelf->EnsureJpgToneLut();
-    int32_t tCanvasWidth = tSelf->GetCanvasWidthUnsafe();
-    int32_t tCanvasHeight = tSelf->GetCanvasHeightUnsafe();
-    constexpr uint8_t kPalette565[6][3] = {
+    if (!tDraw || !tDraw->pUser) return 0;
+    SJpegDitherCtx *tCtx = static_cast<SJpegDitherCtx*>(tDraw->pUser);
+    for (uint16_t tY = 0; tY < tDraw->iHeight; tY++) {
+      int32_t tTargetY = tDraw->y + tY;
+      if (tTargetY < 0 || tTargetY >= tCtx->CanvasHeight) continue;
+      for (uint16_t tX = 0; tX < tDraw->iWidthUsed; tX++) {
+        int32_t tTargetX = tDraw->x + tX;
+        if (tTargetX < 0 || tTargetX >= tCtx->CanvasWidth) continue;
+        const uint32_t *tPixels32 = reinterpret_cast<const uint32_t*>(tDraw->pPixels);
+        uint32_t tPixel = tPixels32[tY * tDraw->iWidth + tX];
+        int32_t tRelX = tTargetX - tCtx->AreaX;
+        int32_t tRelY = tTargetY - tCtx->AreaY;
+        if (tRelX < 0 || tRelY < 0 || tRelX >= tCtx->AreaWidth || tRelY >= tCtx->AreaHeight) continue;
+        int32_t tBufIdx = (tRelY * tCtx->AreaWidth + tRelX) * 3;
+        tCtx->RgbBuf[tBufIdx] = static_cast<uint8_t>(tPixel & 0xFF);
+        tCtx->RgbBuf[tBufIdx + 1] = static_cast<uint8_t>((tPixel >> 8) & 0xFF);
+        tCtx->RgbBuf[tBufIdx + 2] = static_cast<uint8_t>((tPixel >> 16) & 0xFF);
+      }
+    }
+    return 1;
+  }
+
+  void Display_::ApplyFloydSteinberg(const SJpegDitherCtx &tCtx) {
+    constexpr uint8_t kPalette888[6][3] = {
       {0, 0, 0},
-      {31, 63, 31},
-      {31, 63, 0},
-      {31, 0, 0},
-      {0, 0, 31},
-      {0, 63, 0}
+      {255, 255, 255},
+      {255, 255, 0},
+      {255, 0, 0},
+      {0, 0, 255},
+      {0, 255, 0}
     };
     constexpr uint8_t kColorCode[6] = {
       EpaperColorBlack,
@@ -519,33 +500,110 @@ namespace App {
       EpaperColorBlue,
       EpaperColorGreen
     };
-
-    for (uint16_t tY = 0; tY < tDraw->iHeight; tY++) {
-      int32_t tTargetY = tDraw->y + tY;
-      if (tTargetY < 0 || tTargetY >= tCanvasHeight) continue;
-      for (uint16_t tX = 0; tX < tDraw->iWidth; tX++) {
-        int32_t tTargetX = tDraw->x + tX;
-        if (tTargetX < 0 || tTargetX >= tCanvasWidth) continue;
-        uint16_t tPixel565 = tDraw->pPixels[tY * tDraw->iWidth + tX];
-        uint8_t tRed5 = tSelf->mJpgToneLut5[(tPixel565 >> 11) & 0x1F];
-        uint8_t tGreen6 = tSelf->mJpgToneLut6[(tPixel565 >> 5) & 0x3F];
-        uint8_t tBlue5 = tSelf->mJpgToneLut5[tPixel565 & 0x1F];
-        uint32_t tBestDistance = UINT32_MAX;
-        uint8_t tBestColor = EpaperColorWhite;
-        for (uint8_t tIndex = 0; tIndex < 6; tIndex++) {
-          int32_t tDr = static_cast<int32_t>(tRed5) - static_cast<int32_t>(kPalette565[tIndex][0]);
-          int32_t tDg = static_cast<int32_t>(tGreen6) - static_cast<int32_t>(kPalette565[tIndex][1]);
-          int32_t tDb = static_cast<int32_t>(tBlue5) - static_cast<int32_t>(kPalette565[tIndex][2]);
-          uint32_t tDistance = static_cast<uint32_t>(tDr * tDr + tDg * tDg + tDb * tDb);
-          if (tDistance < tBestDistance) {
-            tBestDistance = tDistance;
-            tBestColor = kColorCode[tIndex];
-          }
+    const int32_t kStartX = tCtx.AreaX;
+    const int32_t kStartY = tCtx.AreaY;
+    const int32_t kWidth = tCtx.AreaWidth;
+    const int32_t kHeight = tCtx.AreaHeight;
+    if (kWidth <= 0 || kHeight <= 0) return;
+    uint8_t *tRgb = tCtx.RgbBuf;
+    const int32_t kDitherBrightness = kBoardJpgBrightnessBase + (static_cast<int32_t>(mCfg.JpgBrightness) - static_cast<int32_t>(DISPLAY_JPG_BRIGHTNESS));
+    const int32_t kDitherContrast = std::max<int32_t>(0, std::min<int32_t>(255, kBoardJpgContrastBase + (static_cast<int32_t>(mCfg.JpgContrast) - static_cast<int32_t>(DISPLAY_JPG_CONTRAST))));
+    const int32_t kDitherGamma = std::max<int32_t>(1, std::min<int32_t>(255, kBoardJpgGammaBase + (static_cast<int32_t>(mCfg.JpgGamma) - static_cast<int32_t>(DISPLAY_JPG_GAMMA))));
+    const int32_t kDitherSaturation = std::max<int32_t>(0, std::min<int32_t>(255, kBoardJpgSaturationBase + (static_cast<int32_t>(mCfg.JpgSaturation) - static_cast<int32_t>(DISPLAY_JPG_SATURATION))));
+    const int32_t kDitherRedGain = std::max<int32_t>(0, std::min<int32_t>(200, kBoardJpgRedGainBase + (static_cast<int32_t>(mCfg.JpgRedGain) - static_cast<int32_t>(DISPLAY_JPG_RED_GAIN))));
+    const int32_t kDitherGreenGain = std::max<int32_t>(0, std::min<int32_t>(200, kBoardJpgGreenGainBase + (static_cast<int32_t>(mCfg.JpgGreenGain) - static_cast<int32_t>(DISPLAY_JPG_GREEN_GAIN))));
+    const int32_t kDitherBlueGain = std::max<int32_t>(0, std::min<int32_t>(200, kBoardJpgBlueGainBase + (static_cast<int32_t>(mCfg.JpgBlueGain) - static_cast<int32_t>(DISPLAY_JPG_BLUE_GAIN))));
+    uint8_t tToneLut[256];
+    {
+      const int32_t kBrightness = kDitherBrightness;
+      const int32_t kContrast = kDitherContrast;
+      const uint8_t kGamma = static_cast<uint8_t>(kDitherGamma);
+      for (int32_t tI = 0; tI < 256; tI++) {
+        int32_t tVal = 128 + ((tI - 128) * kContrast) / 100;
+        tVal += ((kBrightness - 100) * 255) / 100;
+        if (tVal < 0) tVal = 0; else if (tVal > 255) tVal = 255;
+        if (kGamma != 100) {
+          float tNorm = static_cast<float>(tVal) / 255.0f;
+          tNorm = powf(tNorm, 100.0f / static_cast<float>(kGamma));
+          tVal = static_cast<int32_t>(tNorm * 255.0f + 0.5f);
+          if (tVal < 0) tVal = 0; else if (tVal > 255) tVal = 255;
         }
-        tSelf->SetFrameBufferPixel(tTargetX, tTargetY, tBestColor);
+        tToneLut[tI] = static_cast<uint8_t>(tVal);
       }
     }
-    return 1;
+    size_t tErrBufSize = static_cast<size_t>(2 * kWidth * 3) * sizeof(int16_t);
+    int16_t *tErrBuf = static_cast<int16_t*>(heap_caps_calloc(1, tErrBufSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!tErrBuf) return;
+    for (int32_t tY = 0; tY < kHeight; tY++) {
+      int32_t tCurrRow = tY & 1;
+      int32_t tNextRow = tCurrRow ^ 1;
+      memset(tErrBuf + tNextRow * kWidth * 3, 0, static_cast<size_t>(kWidth * 3) * sizeof(int16_t));
+      for (int32_t tX = 0; tX < kWidth; tX++) {
+        int32_t tBufIdx = (tY * kWidth + tX) * 3;
+        int32_t tErrIdx = (tCurrRow * kWidth + tX) * 3;
+        int32_t tR = static_cast<int32_t>(tToneLut[tRgb[tBufIdx]])     + tErrBuf[tErrIdx];
+        int32_t tG = static_cast<int32_t>(tToneLut[tRgb[tBufIdx + 1]]) + tErrBuf[tErrIdx + 1];
+        int32_t tB = static_cast<int32_t>(tToneLut[tRgb[tBufIdx + 2]]) + tErrBuf[tErrIdx + 2];
+        if (tR < 0) tR = 0; else if (tR > 255) tR = 255;
+        if (tG < 0) tG = 0; else if (tG > 255) tG = 255;
+        if (tB < 0) tB = 0; else if (tB > 255) tB = 255;
+        if (kDitherSaturation != 100) {
+          int32_t tGray = (tR + tG + tB) / 3;
+          tR = tGray + (tR - tGray) * kDitherSaturation / 100;
+          tG = tGray + (tG - tGray) * kDitherSaturation / 100;
+          tB = tGray + (tB - tGray) * kDitherSaturation / 100;
+          if (tR < 0) tR = 0; else if (tR > 255) tR = 255;
+          if (tG < 0) tG = 0; else if (tG > 255) tG = 255;
+          if (tB < 0) tB = 0; else if (tB > 255) tB = 255;
+        }
+        if (kDitherRedGain != 100 || kDitherGreenGain != 100 || kDitherBlueGain != 100) {
+          tR = (tR * kDitherRedGain) / 100;
+          tG = (tG * kDitherGreenGain) / 100;
+          tB = (tB * kDitherBlueGain) / 100;
+          if (tR < 0) tR = 0; else if (tR > 255) tR = 255;
+          if (tG < 0) tG = 0; else if (tG > 255) tG = 255;
+          if (tB < 0) tB = 0; else if (tB > 255) tB = 255;
+        }
+        uint32_t tBestDist = UINT32_MAX;
+        uint8_t tBestIdx = 1;
+        for (uint8_t tI = 0; tI < 6; tI++) {
+          int32_t tDr = tR - static_cast<int32_t>(kPalette888[tI][0]);
+          int32_t tDg = tG - static_cast<int32_t>(kPalette888[tI][1]);
+          int32_t tDb = tB - static_cast<int32_t>(kPalette888[tI][2]);
+          uint32_t tDist = static_cast<uint32_t>(tDr * tDr + tDg * tDg + tDb * tDb);
+          if (tDist < tBestDist) { tBestDist = tDist; tBestIdx = tI; }
+        }
+        SetFrameBufferPixel(kStartX + tX, kStartY + tY, kColorCode[tBestIdx]);
+        int16_t tErrR = static_cast<int16_t>(tR - static_cast<int32_t>(kPalette888[tBestIdx][0]));
+        int16_t tErrG = static_cast<int16_t>(tG - static_cast<int32_t>(kPalette888[tBestIdx][1]));
+        int16_t tErrB = static_cast<int16_t>(tB - static_cast<int32_t>(kPalette888[tBestIdx][2]));
+        if (tX + 1 < kWidth) {
+          int32_t tIdx = (tCurrRow * kWidth + tX + 1) * 3;
+          tErrBuf[tIdx] += (tErrR * 7) >> 4;
+          tErrBuf[tIdx + 1] += (tErrG * 7) >> 4;
+          tErrBuf[tIdx + 2] += (tErrB * 7) >> 4;
+        }
+        if (tX > 0) {
+          int32_t tIdx = (tNextRow * kWidth + tX - 1) * 3;
+          tErrBuf[tIdx] += (tErrR * 3) >> 4;
+          tErrBuf[tIdx + 1] += (tErrG * 3) >> 4;
+          tErrBuf[tIdx + 2] += (tErrB * 3) >> 4;
+        }
+        {
+          int32_t tIdx = (tNextRow * kWidth + tX) * 3;
+          tErrBuf[tIdx] += (tErrR * 5) >> 4;
+          tErrBuf[tIdx + 1] += (tErrG * 5) >> 4;
+          tErrBuf[tIdx + 2] += (tErrB * 5) >> 4;
+        }
+        if (tX + 1 < kWidth) {
+          int32_t tIdx = (tNextRow * kWidth + tX + 1) * 3;
+          tErrBuf[tIdx] += (tErrR * 1) >> 4;
+          tErrBuf[tIdx + 1] += (tErrG * 1) >> 4;
+          tErrBuf[tIdx + 2] += (tErrB * 1) >> 4;
+        }
+      }
+    }
+    heap_caps_free(tErrBuf);
   }
 
   bool Display_::PrintJpg(int32_t tX, int32_t tY, const char *tFileName) {
@@ -605,16 +663,34 @@ namespace App {
           if (tRead == tSize) {
             JPEGDEC tJpeg;
             if (tJpeg.openRAM(tBuffer, static_cast<int>(tSize), &tSelf.JpegDrawCallback)) {
-              tJpeg.setPixelType(RGB565_BIG_ENDIAN);
+              tJpeg.setPixelType(RGB8888);
               Display_::Lock();
               if (tSelf.mFrameBuffer) {
                 int32_t tCanvasWidth = tSelf.GetCanvasWidthUnsafe();
                 int32_t tCanvasHeight = tSelf.GetCanvasHeightUnsafe();
                 int16_t tDrawX = (tData->X < 0) ? static_cast<int16_t>((tCanvasWidth - tJpeg.getWidth()) / 2) : static_cast<int16_t>(tData->X);
                 int16_t tDrawY = (tData->Y < 0) ? static_cast<int16_t>((tCanvasHeight - tJpeg.getHeight()) / 2) : static_cast<int16_t>(tData->Y);
-                EPaperDriver_::ClearImage(static_cast<uint16_t>(tSelf.mBgColor));
-                tJpeg.decode(tDrawX, tDrawY, 0);
-                tData->Success = true;
+                int32_t tAreaStartX = std::max<int32_t>(0, tDrawX);
+                int32_t tAreaStartY = std::max<int32_t>(0, tDrawY);
+                int32_t tAreaEndX = std::min<int32_t>(tCanvasWidth, static_cast<int32_t>(tDrawX) + tJpeg.getWidth());
+                int32_t tAreaEndY = std::min<int32_t>(tCanvasHeight, static_cast<int32_t>(tDrawY) + tJpeg.getHeight());
+                int32_t tAreaWidth = tAreaEndX - tAreaStartX;
+                int32_t tAreaHeight = tAreaEndY - tAreaStartY;
+                if (tAreaWidth <= 0 || tAreaHeight <= 0) {
+                  tData->Success = true;
+                } else {
+                  size_t tRgbSize = static_cast<size_t>(tAreaWidth * tAreaHeight * 3);
+                  uint8_t *tRgbBuf = static_cast<uint8_t*>(heap_caps_malloc(tRgbSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+                  if (tRgbBuf) {
+                    SJpegDitherCtx tDitherCtx { tRgbBuf, tCanvasWidth, tCanvasHeight, tAreaStartX, tAreaStartY, tAreaWidth, tAreaHeight };
+                    tJpeg.setUserPointer(&tDitherCtx);
+                    EPaperDriver_::ClearImage(static_cast<uint16_t>(tSelf.mBgColor));
+                    tJpeg.decode(tDrawX, tDrawY, 0);
+                    tSelf.ApplyFloydSteinberg(tDitherCtx);
+                    tData->Success = true;
+                    heap_caps_free(tRgbBuf);
+                  }
+                }
               }
               Display_::Unlock();
               tJpeg.close();
@@ -626,13 +702,11 @@ namespace App {
       xSemaphoreGive(tData->Done);
       vTaskDelete(nullptr);
     }, "JpgDecode", JPEG_DECODE_TASK_STACK_SIZE, tTaskData, 5, nullptr);
-
     if (tCreateResult != pdPASS) {
       vSemaphoreDelete(tDoneSemaphore);
       delete tTaskData;
       return false;
     }
-
     bool tSuccess = false;
     if (xSemaphoreTake(tDoneSemaphore, portMAX_DELAY) == pdTRUE) tSuccess = tTaskData->Success;
     vSemaphoreDelete(tDoneSemaphore);

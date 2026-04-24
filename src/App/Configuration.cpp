@@ -89,9 +89,13 @@ namespace App {
     tDefaultConfig.Display.Width = DISPLAY_WIDTH;
     tDefaultConfig.Display.Height = DISPLAY_HEIGHT;
     tDefaultConfig.Display.Rotate = DISPLAY_ROTATE;
-    tDefaultConfig.Display.JpgBrightness = 25;
-    tDefaultConfig.Display.JpgContrast = 75;
-    tDefaultConfig.Display.JpgGamma = 125;
+    tDefaultConfig.Display.JpgBrightness = DISPLAY_JPG_BRIGHTNESS;
+    tDefaultConfig.Display.JpgContrast = DISPLAY_JPG_CONTRAST;
+    tDefaultConfig.Display.JpgGamma = DISPLAY_JPG_GAMMA;
+    tDefaultConfig.Display.JpgSaturation = DISPLAY_JPG_SATURATION;
+    tDefaultConfig.Display.JpgRedGain = DISPLAY_JPG_RED_GAIN;
+    tDefaultConfig.Display.JpgGreenGain = DISPLAY_JPG_GREEN_GAIN;
+    tDefaultConfig.Display.JpgBlueGain = DISPLAY_JPG_BLUE_GAIN;
     tDefaultConfig.Display.ImagesDir = IMAGES_DIR;
     tDefaultConfig.Display.ImageExt = IMAGE_EXT;
     tDefaultConfig.Display.CurrentFile = "";
@@ -282,6 +286,10 @@ namespace App {
       tCfg.JpgBrightness = mConfig.getUChar(kNvsDisplayBrightness, tDefaultConfig.Display.JpgBrightness);
       tCfg.JpgContrast = mConfig.getUChar(kNvsDisplayContrast, tDefaultConfig.Display.JpgContrast);
       tCfg.JpgGamma = mConfig.getUChar(kNvsDisplayGamma, tDefaultConfig.Display.JpgGamma);
+      tCfg.JpgSaturation = mConfig.getUChar(kNvsDisplaySaturation, tDefaultConfig.Display.JpgSaturation);
+      tCfg.JpgRedGain = mConfig.getUChar(kNvsDisplayRedGain, tDefaultConfig.Display.JpgRedGain);
+      tCfg.JpgGreenGain = mConfig.getUChar(kNvsDisplayGreenGain, tDefaultConfig.Display.JpgGreenGain);
+      tCfg.JpgBlueGain = mConfig.getUChar(kNvsDisplayBlueGain, tDefaultConfig.Display.JpgBlueGain);
       tCfg.ImagesDir = tDefaultConfig.Display.ImagesDir;
       tCfg.ImageExt = tDefaultConfig.Display.ImageExt;
       tCfg.CurrentFile = mConfig.getString(kNvsDisplayFile, tDefaultConfig.Display.CurrentFile);
@@ -415,6 +423,10 @@ namespace App {
       tPutBool(kNvsDisplayBrightness, mConfig.putUChar(kNvsDisplayBrightness, tConfig.Display.JpgBrightness));
       tPutBool(kNvsDisplayContrast, mConfig.putUChar(kNvsDisplayContrast, tConfig.Display.JpgContrast));
       tPutBool(kNvsDisplayGamma, mConfig.putUChar(kNvsDisplayGamma, tConfig.Display.JpgGamma));
+      tPutBool(kNvsDisplaySaturation, mConfig.putUChar(kNvsDisplaySaturation, tConfig.Display.JpgSaturation));
+      tPutBool(kNvsDisplayRedGain, mConfig.putUChar(kNvsDisplayRedGain, tConfig.Display.JpgRedGain));
+      tPutBool(kNvsDisplayGreenGain, mConfig.putUChar(kNvsDisplayGreenGain, tConfig.Display.JpgGreenGain));
+      tPutBool(kNvsDisplayBlueGain, mConfig.putUChar(kNvsDisplayBlueGain, tConfig.Display.JpgBlueGain));
       tPutString(kNvsDisplayFile, tConfig.Display.CurrentFile);
       tPutBool(kNvsDisplayImageUpdatedAt, mConfig.putULong(kNvsDisplayImageUpdatedAt, tConfig.Display.ImageUpdatedAt));
       tPutString(kNvsTimeServer, tConfig.Ntp.Server);

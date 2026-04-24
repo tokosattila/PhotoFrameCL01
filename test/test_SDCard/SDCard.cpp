@@ -8,6 +8,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
+#include <cctype>
+#include <algorithm>
+#include <vector>
+#include <string>
 
 // ============================================================================
 // Standalone implementations for testing (extracted from SDCard.cpp/LittleFS.cpp)
@@ -326,6 +330,127 @@ void test_IsFile_empty_null() {
 }
 
 // ============================================================================
+// Case-insensitive FindFileIndex (new production behaviour)
+// ============================================================================
+
+int FindFileIndexCI(const char *tFilename, const char **tFileList, size_t tCount) {
+  if (!tFilename || !tFileList || tCount == 0) return -1;
+  for (size_t i = 0; i < tCount; ++i) {
+    if (!tFileList[i]) continue;
+    const char *tA = tFilename;
+    const char *tB = tFileList[i];
+    bool tMatch = true;
+    while (*tA && *tB) {
+      if (tolower((unsigned char)*tA) != tolower((unsigned char)*tB)) { tMatch = false; break; }
+      ++tA; ++tB;
+    }
+    if (tMatch && *tA == '\0' && *tB == '\0') return (int)i;
+  }
+  return -1;
+}
+
+// ============================================================================
+// Case-insensitive FindFileIndex Tests
+// ============================================================================
+
+void test_FindFileIndexCI_exact_match() {
+  const char *files[] = {"001pic.jpg", "002pic.jpg", "003pic.jpg"};
+  TEST_ASSERT_EQUAL_INT(0, FindFileIndexCI("001pic.jpg", files, 3));
+  TEST_ASSERT_EQUAL_INT(2, FindFileIndexCI("003pic.jpg", files, 3));
+}
+
+void test_FindFileIndexCI_case_mismatch() {
+  const char *files[] = {"001pic.jpg", "002pic.jpg", "003pic.jpg"};
+  TEST_ASSERT_EQUAL_INT(0, FindFileIndexCI("001PIC.JPG", files, 3));
+  TEST_ASSERT_EQUAL_INT(1, FindFileIndexCI("002PIC.jpg", files, 3));
+}
+
+void test_FindFileIndexCI_not_found() {
+  const char *files[] = {"001pic.jpg", "002pic.jpg"};
+  TEST_ASSERT_EQUAL_INT(-1, FindFileIndexCI("004pic.jpg", files, 2));
+}
+
+void test_FindFileIndexCI_null_input() {
+  const char *files[] = {"001pic.jpg"};
+  TEST_ASSERT_EQUAL_INT(-1, FindFileIndexCI(nullptr, files, 1));
+  TEST_ASSERT_EQUAL_INT(-1, FindFileIndexCI("001pic.jpg", nullptr, 1));
+}
+
+void test_FindFileIndexCI_empty_list() {
+  const char *files[] = {};
+  TEST_ASSERT_EQUAL_INT(-1, FindFileIndexCI("001pic.jpg", files, 0));
+}
+
+// ============================================================================
+// Sorted file list cycling simulation (GetNextFile behaviour)
+// The production code: sorts alphabetically, finds current by CI compare,
+// returns next index with wrap-around, falls back to index 0 if not found.
+// ============================================================================
+
+// Simulate GetNextFile: sorted list + CI lookup + fallback to 0
+const char *SimulateGetNextFile(const char *tCurrent,
+                                 std::vector<std::string> &tFiles) {
+  std::sort(tFiles.begin(), tFiles.end());
+  if (tFiles.empty()) return nullptr;
+  int tIdx = -1;
+  for (int i = 0; i < (int)tFiles.size(); ++i) {
+    const char *tA = tCurrent ? tCurrent : "";
+    const char *tB = tFiles[i].c_str();
+    bool tMatch = true;
+    while (*tA && *tB) {
+      if (tolower((unsigned char)*tA) != tolower((unsigned char)*tB)) { tMatch = false; break; }
+      ++tA; ++tB;
+    }
+    if (tMatch && *tA == '\0' && *tB == '\0') { tIdx = i; break; }
+  }
+  size_t tNextIdx = (tIdx >= 0) ? (size_t)(tIdx + 1) % tFiles.size() : 0;
+  return tFiles[tNextIdx].c_str();
+}
+
+void test_SortedCycle_advances_in_order() {
+  std::vector<std::string> tFiles = {"003pic.jpg", "001pic.jpg", "002pic.jpg"};
+  // After sort: 001, 002, 003
+  // current=001 → next should be 002
+  const char *tNext = SimulateGetNextFile("001pic.jpg", tFiles);
+  TEST_ASSERT_EQUAL_STRING("002pic.jpg", tNext);
+}
+
+void test_SortedCycle_wraps_at_end() {
+  std::vector<std::string> tFiles = {"003pic.jpg", "001pic.jpg", "002pic.jpg"};
+  // After sort: 001, 002, 003
+  // current=003 → wraps to 001
+  const char *tNext = SimulateGetNextFile("003pic.jpg", tFiles);
+  TEST_ASSERT_EQUAL_STRING("001pic.jpg", tNext);
+}
+
+void test_SortedCycle_case_insensitive_lookup() {
+  std::vector<std::string> tFiles = {"001pic.jpg", "002pic.jpg", "003pic.jpg"};
+  // current stored as uppercase, list is lowercase → should still find and advance
+  const char *tNext = SimulateGetNextFile("002PIC.JPG", tFiles);
+  TEST_ASSERT_EQUAL_STRING("003pic.jpg", tNext);
+}
+
+void test_SortedCycle_unknown_current_falls_back_to_first() {
+  std::vector<std::string> tFiles = {"003pic.jpg", "001pic.jpg", "002pic.jpg"};
+  // After sort: 001, 002, 003
+  // current not found → fallback to index 0 → returns 001
+  const char *tNext = SimulateGetNextFile("999notexist.jpg", tFiles);
+  TEST_ASSERT_EQUAL_STRING("001pic.jpg", tNext);
+}
+
+void test_SortedCycle_single_file_stays() {
+  std::vector<std::string> tFiles = {"only.jpg"};
+  const char *tNext = SimulateGetNextFile("only.jpg", tFiles);
+  TEST_ASSERT_EQUAL_STRING("only.jpg", tNext);
+}
+
+void test_SortedCycle_empty_current_falls_back_to_first() {
+  std::vector<std::string> tFiles = {"003pic.jpg", "001pic.jpg", "002pic.jpg"};
+  const char *tNext = SimulateGetNextFile("", tFiles);
+  TEST_ASSERT_EQUAL_STRING("001pic.jpg", tNext);
+}
+
+// ============================================================================
 // Test Runner
 // ============================================================================
 
@@ -390,6 +515,21 @@ int main(int argc, char **argv) {
   RUN_TEST(test_IsFile_invalid_extensions);
   RUN_TEST(test_IsFile_no_extension);
   RUN_TEST(test_IsFile_empty_null);
+
+  // Case-insensitive FindFileIndex tests
+  RUN_TEST(test_FindFileIndexCI_exact_match);
+  RUN_TEST(test_FindFileIndexCI_case_mismatch);
+  RUN_TEST(test_FindFileIndexCI_not_found);
+  RUN_TEST(test_FindFileIndexCI_null_input);
+  RUN_TEST(test_FindFileIndexCI_empty_list);
+
+  // Sorted cycling tests (GetNextFile behaviour)
+  RUN_TEST(test_SortedCycle_advances_in_order);
+  RUN_TEST(test_SortedCycle_wraps_at_end);
+  RUN_TEST(test_SortedCycle_case_insensitive_lookup);
+  RUN_TEST(test_SortedCycle_unknown_current_falls_back_to_first);
+  RUN_TEST(test_SortedCycle_single_file_stays);
+  RUN_TEST(test_SortedCycle_empty_current_falls_back_to_first);
   
   return UNITY_END();
 }
