@@ -64,7 +64,7 @@ This creates an output BMP next to the input, for example:
 2) Convert 6-color BMP to C++ header
 ------------------------------------
 
-Use `bmp6_to_cpp_header.py` to generate a header compatible with the firmware fallback image format.
+Use `bmp6_to_hex.py` to generate a header compatible with the firmware fallback image format.
 
 Prerequisite:
 
@@ -76,7 +76,7 @@ Basic usage:
 
 .. code-block:: shell
 
-    python3 bmp6_to_cpp_header.py path/to/input_scale_output.bmp
+    python3 bmp6_to_hex.py path/to/input_scale_output.bmp
 
 Default output path:
 
@@ -88,7 +88,7 @@ Custom output and array name:
 
 .. code-block:: shell
 
-    python3 bmp6_to_cpp_header.py path/to/input.bmp --output ../src/Images/DefaultImage.h --array-name DefaultImage
+    python3 bmp6_to_hex.py path/to/input.bmp --output ../src/Images/DefaultImage.h --array-name DefaultImage
 
 Strict mode (default):
 
@@ -98,7 +98,7 @@ Non-strict mode:
 
 .. code-block:: shell
 
-    python3 bmp6_to_cpp_header.py path/to/input.bmp --no-strict
+    python3 bmp6_to_hex.py path/to/input.bmp --no-strict
 
 - Non-palette colors are mapped to nearest EPD color.
 

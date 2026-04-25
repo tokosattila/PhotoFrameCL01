@@ -1,16 +1,16 @@
-# Photo Frame CL01 (Spectra/Spectre Color E-ink)
+# Photo Frame CL01 (Spectra6 Color E-ink)
 
-E-ink digital picture frame with WiFi-enabled maintenance mode, color rendering and deep sleep operation with RTC backup for extended battery life.
+Color e-ink digital picture frame with WiFi-enabled admin dashboard, JPEG color rendering, and deep sleep operation with RTC backup for extended battery life.
 
-> Display target in this repository is the color e-paper path (`EPD_7IN3E`, 800x480), also commonly referred to as Spectra/Spectre class display.
+> Display target in this repository is the color e-paper path (`EPD_7IN3E`, 800×480), also commonly referred to as Spectra6 class display.
 
 > **📌 Note:** This project is designed for the newer **LilyGo T5 4.7" E-Paper Plus** (ESP32-S3). For the older **LilyGo T5 4.7" E-Paper** (WROVER-E) version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
 
 ## 📸 Gallery
 
-| <img src="docs/images/pic01.jpg" width="240px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="240px" alt="Photo Frame Hardware" /> | <img src="docs/images/pic03.jpg" width="240px" alt="Photo Frame Back Side" /> |
-|:---:|:---:|:---:|
-| *Photo Frame with Image* | *Hardware backside* | *Backside covered* |
+| <img src="docs/images/pic01.jpg" width="190px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="190px" alt="Photo Frame Hardware" /> | <img src="docs/images/pic03.jpg" width="190px" alt="Photo Frame Back Side" /> | <img src="docs/images/pic04.jpg" width="190px" alt="Photo Frame Detail" /> | <img src="docs/images/pic05.jpg" width="190px" alt="Photo Frame Detail" /> |
+|:---:|:---:|:---:|:---:|:---:|
+| *Display* | *Hardware* | *Backside* | *Detail* | *Detail* |
 
 ## 🔧 Hardware
 
@@ -22,15 +22,16 @@ E-ink digital picture frame with WiFi-enabled maintenance mode, color rendering 
 |-----------|--------------|
 | **Board** | LilyGo T5 4.7" E-Paper Plus |
 | **MCU** | ESP32-S3 |
-| **Display** | EPD_7IN3E class color panel (800×480) |
-| **Flash** | 16MB |
-| **PSRAM** | 8MB |
+| **Display** | EPD_7IN3E 800×480 color e-paper (Spectra6) |
+| **Flash** | 16 MB |
+| **PSRAM** | 8 MB (OPI) |
 | **RTC** | PCF8563 (I2C, battery backup) |
-| **Storage** | SD Card (SPI) + LittleFS (internal) |
+| **Audio** | I2S codec (tone playback) |
+| **Storage** | SD Card (SPI) + LittleFS (10 MB internal) |
 | **Battery** | Li-Ion 18650 (optional) |
 
 </td>
-<td align="center"> 
+<td align="center">
 <img src="docs/LilyGoT54.7E-PaperPlus-Pins.png" width="370px" alt="PIN" />
 </td>
 </tr>
@@ -38,229 +39,291 @@ E-ink digital picture frame with WiFi-enabled maintenance mode, color rendering 
 
 ## 🔄 Operating Modes
 
-| Mode | Description |
-|------|-------------|
-| **Photo Frame Mode** | JPEG slideshow from SD Card or LittleFS with color rendering, deep sleep between wake intervals (10sec to monthly) |
-| **Maintenance Mode** | Button-triggered mode for configuration & remote management |
-| **Low Battery Mode** | Auto shutdown with battery icon display |
+| Mode | Trigger | Description |
+|------|---------|-------------|
+| **Photo Frame Mode** | Timer wake-up / power-on | JPEG slideshow from storage, deep sleep between frames |
+| **Maintenance Mode** | Long-press Settings button | WiFi admin dashboard for full device management |
+| **Low Battery Mode** | Auto-detect on boot | Battery icon display + deep sleep hibernation |
 
 ## ✨ Features
 
-- **Dual Storage Support** — SD Card (primary) + LittleFS (internal flash)
-- **Smart Storage Fallback** — Auto-switch to secondary storage if images folder is empty
-- **Cross-Storage File Operations** — Copy files between SD Card and LittleFS, delete with glob/batch support
-- **RTC Backup** — PCF8563 maintains time during deep sleep
-- **WiFi Connectivity** — AP mode for setup, STA mode for network access
-- **NTP Time Sync** — Automatic time synchronization with RTC backup
-- **Firmware OTA (Dual Slot)** — Update firmware via `/firmware/` (ota_0/ota_1) with boot-slot control
-- **Battery Monitoring** — Auto low-power mode with voltage display
-- **Color Rendering** — Palette mapping for the active e-paper color set with brightness/contrast/gamma control
-- **Scheduled Wake-up** — Timer-based deep sleep with configurable wake-up hour (0–23)
-- **Deep Sleep Wake-up** — Timer-based or button-triggered (EXT1)
-- **mDNS Support** — Access device via hostname.local
+- **Dual Storage** — SD Card (primary) + LittleFS (internal flash) with automatic fallback
+- **Cross-Storage Operations** — Copy, delete (including glob/batch) between SD Card and LittleFS
+- **Color Rendering** — Brightness / contrast / saturation / gamma / per-channel RGB gain
+- **JPEG Slideshow** — Sequential image display, next file persisted in NVS across deep sleep cycles
+- **Scheduled Wake-up** — Timer-based sleep with configurable target hour (Daily / Weekly / Monthly)
+- **Web Admin Dashboard** — Full-featured management UI served directly from the device (port 80)
+- **Session Authentication** — Cookie-based token login with inactivity auto-restart
+- **Firmware OTA (Dual Slot)** — Upload `firmware.bin` via dashboard, `ota_0` / `ota_1` with boot-slot control
+- **NTP Time Sync** — Automatic sync with RTC backup; configurable low-power weekly sync
+- **mDNS Support** — Access device via `hostname.local`
+- **Battery Monitoring** — Voltage + percentage; auto low-battery shutdown
+- **Audio Feedback** — I2S codec tone playback for mode transitions and alerts
+- **Dynamic CPU Scaling** — Automatic 160 / 240 MHz switching based on active workload
+- **Multilingual UI** — English and Hungarian dashboard languages
 
 ## 📁 Project Structure
 
 ```
-
-## 🧭 Dashboard JS Style Rules
-
-The dashboard JavaScript sources under `src/App/Dashboard/Assets/Js` follow these conventions:
-
-- Variable names must be descriptive (avoid one-letter names like `c`, `u`, `r`, `d`).
-- Prefer the existing prefixes:
-  - `t...` for local/runtime values (example: `tApp`, `tResponse`, `tParams`, `tPayload`)
-  - `k...` for constant/local fixed values
-  - `m...` for member state
-- Translation calls are key-only: `TranslateMessage('key_name')`.
-  - Do not pass fallback literals to `TranslateMessage`.
-
-Exception:
-
-- The Toastify block embedded in `src/App/Dashboard/Assets/Js/App.h` is a third-party minified vendor snippet.
-- Its short variable names are intentionally kept as-is and are excluded from the descriptive naming rule.
 src/
-├── Main.cpp                    # Application entry point
-├── App/
-│   ├── Button.cpp/h            # Debounced button handling
-│   ├── Configuration.cpp/h     # INI config management
-│   ├── Connection.cpp/h        # WiFi management (AP/STA)
-│   ├── Display.cpp/h           # E-Paper driver wrapper
-│   ├── Firmware.cpp/h          # Firmware manager
-│   ├── Global.h                # Global definitions & macros
-│   ├── LittleFS.cpp/h          # LittleFS operations
-│   ├── NTP.cpp/h               # NTP time sync
-│   ├── RTCTime.cpp/h           # PCF8563 RTC driver
-│   ├── SDCard.cpp/h            # SD Card operations (SPI)
-│   ├── Storage.cpp/h           # Storage manager with fallback
-│   └── Utils.cpp/h             # System utilities, file ops, glob matching
-├── Fonts/                      # OpenSans bitmap fonts (6-26pt)
-│   └── opensans*.h             # 26 font variants
-└── Images/
-    └── DefaultImage.h          # Default fallback image
-
-lib/
-├── ArduinoHttpClient/          # HTTP client for image fetch
-├── JPEGDEC/                    # JPEG decoder
-├── LilyGoEPD47/                # E-Paper driver
-└── Unity/                      # Unit testing framework
-
-test/
-├── mocks/                      # Mock classes for testing
-│   ├── MockString.h
-│   └── MockWiFiClient.h
-├── test_Button/                # Button unit tests
-├── test_ConfigCommand/         # Config command parsing tests
-├── test_Configuration/         # Configuration parser tests
-├── test_DateCommand/           # Date/RTC command parsing tests
-├── test_ESP32/                 # Hardware-specific ESP32 tests
-├── test_NTP/                   # NTP time utility tests
-├── test_RTCTime/               # RTC time functions tests
-├── test_SDCard/                # SD Card path/file utilities
-├── test_Storage/               # Storage fallback logic tests
-└── test_Utils/                 # Utility function tests
+├── Main.cpp                        # Application entry point, mode routing
+└── App/
+    ├── Global.h                    # Global types, constants, macros
+    ├── Battery.cpp/h               # ADC battery voltage monitoring
+    ├── Button.cpp/h                # Debounced button with short/long press callbacks
+    ├── Configuration.cpp/h         # NVS-based config load / save / factory reset
+    ├── Connection.cpp/h            # WiFi AP / STA / fallback AP management
+    ├── Dashboard.cpp/h             # Async web server, REST API, session management
+    ├── Display.cpp/h               # E-Paper driver wrapper + JPEG color rendering
+    ├── Firmware.cpp/h              # OTA firmware update manager
+    ├── Led.cpp/h                   # Activity LED control
+    ├── NTP.cpp/h                   # NTP time synchronization
+    ├── RTC.cpp/h                   # PCF8563 real-time clock driver
+    ├── Sound.cpp/h                 # I2S codec tone/sound playback
+    ├── Storage.cpp/h               # Unified storage manager with fallback
+    ├── Utils.cpp/h                 # System utilities, glob matching, file ops
+    ├── Dashboard/
+    │   ├── Assets/                 # CSS, JS, icon assets (PROGMEM)
+    │   ├── Components/             # Reusable HTML components
+    │   ├── Languages/              # En.h, Hu.h translation registries
+    │   ├── Pages/                  # HTML page definitions (PROGMEM)
+    │   │   ├── Index.h             # Gallery / image management
+    │   │   ├── Display.h           # Color rendering settings
+    │   │   ├── Firmware.h          # OTA firmware upload
+    │   │   ├── Network.h           # WiFi AP / STA configuration
+    │   │   ├── Ntp.h               # NTP server settings
+    │   │   ├── DateTime.h          # Manual date/time override
+    │   │   ├── WakeUp.h            # Deep sleep schedule settings
+    │   │   ├── Mdns.h              # mDNS hostname settings
+    │   │   ├── Language.h          # UI language selection
+    │   │   ├── Settings.h          # Dashboard settings (theme, CPU scaling…)
+    │   │   ├── User.h              # Admin credentials
+    │   │   ├── Stats.h             # Device statistics
+    │   │   └── Registry.h          # NVS key browser
+    │   └── Utils/                  # Dashboard helper functions
+    ├── Fonts/                      # OpenSans bitmap fonts (display text)
+    ├── Images/                     # Default fallback image (PROGMEM)
+    └── Sounds/                     # Tone arrays for audio feedback
 ```
+
+## ⚙️ Mechanisms
+
+### Configuration (NVS)
+
+All configuration is stored in NVS (non-volatile storage) via the `Preferences` library. On first boot, `Configuration_::Init()` detects a missing config key and writes a full default config. Every setting has a dedicated NVS key (e.g. `dsh.cpu.dyn`, `dsp.brightness`). Factory reset wipes all NVS keys and reboots.
+
+### Storage Fallback
+
+`Storage_` wraps both `SDCard_` and `LittleFS_` behind a unified interface. At init, the configured primary storage is tried first. If the images folder is empty or the storage is unavailable, and `FallbackEnabled = true`, the secondary storage is automatically selected. Cross-storage copy and glob-based batch delete work on both backends.
+
+### Deep Sleep & Wake-up
+
+In Photo Frame Mode the device renders the current JPEG, powers off the display, then calls `esp_sleep_enable_timer_wakeup()` with the computed sleep duration and enters deep sleep. The next image filename is persisted in NVS before sleeping so the slideshow resumes correctly after any wake-up. Wake-up sources: timer (via `esp_timer`) and button press (GPIO EXT1). For Daily / Weekly / Monthly modes the exact remaining seconds until `wake_up_hour` are calculated from the RTC.
+
+| Timer Mode | Interval | `wake_up_hour` used |
+|------------|----------|---------------------|
+| Seconds | ~60 sec | No |
+| Minutes | ~1 min | No |
+| Hourly | 1 hour | No |
+| Half-day | 12 hours | No |
+| **Daily** | 24 hours | Yes |
+| **Weekly** | ~7 days | Yes |
+| **Monthly** | ~30 days | Yes |
+
+### Dynamic CPU Scaling
+
+During Maintenance Mode the CPU frequency is managed automatically by `Dashboard_::EvaluateCpuPerformance()`, called every second from `DashboardTask`. Frequency switches only when state actually changes (no redundant calls).
+
+| Workload | Trigger | Frequency | Hold window |
+|----------|---------|-----------|-------------|
+| Page navigation | `/api/page`, `index.html`, `firmware.html` | 240 MHz | 6 s |
+| Image / media ops | `/api/images/*` | 240 MHz | 10 s |
+| OTA upload | `/api/ota/*` | 240 MHz | 45 s |
+| Idle | — | 160 MHz | — |
+
+Can be disabled from **Settings → Dynamic CPU Scaling** (NVS key: `dsh.cpu.dyn`).
+
+### Session Management
+
+The dashboard uses cookie-based session tokens. On `POST /api/login` a 64-char hex token is generated (SHA-256 of username + password + random salt), stored server-side in a fixed-size session table, and sent as an `HttpOnly` cookie. Every authenticated request validates the cookie against the table and resets the `LastSeenMs` timestamp — this is also used as the activity signal for the inactivity timeout.
+
+Expired or invalid tokens get a `401` redirect to `/login`. Sessions are purged periodically; the table size limits concurrent sessions.
+
+### Inactivity Timeout (Maintenance Mode)
+
+`MaintenanceMode()` loops with a 1-second tick. It reads `DSH.GetLastActivityMs()` (last authenticated API call) and compares it against the timeout constant (`MAINTENANCE_INACTIVITY_TIMEOUT_MS = 10 min`). On expiry the device shuts down the dashboard, display, storage, and WiFi cleanly, then calls `esp_restart()` to return to Photo Frame Mode.
+
+### Firmware OTA (Dual Slot)
+
+The partition table has two equal 3 MB app slots (`ota_0`, `ota_1`) controlled by `otadata`. OTA upload streams `firmware.bin` via `POST /api/ota/upload` directly into the inactive slot using the Arduino `Update` library. On success the boot pointer is flipped to the new slot and the device reboots. The Firmware dashboard page shows the running and boot slot and allows manual slot override.
+
+A plain USB flash typically writes to `ota_0` at `0x10000`. If the device reboots to the wrong slot, set it explicitly from the Firmware page.
+
+## 🖥️ Admin Dashboard
+
+The device serves a web admin dashboard during **Maintenance Mode** on port 80. All HTML, CSS, JS and assets are stored as `PROGMEM` strings in header files — no filesystem access required for the UI.
+
+**Default credentials:** `admin` / `admin`  
+The password is stored as a SHA-256 hash in NVS and can be changed from the User page.
+
+**Access URL:**
+- mDNS: `http://photoframecl01.local/`
+- AP mode: `http://192.168.4.1/`
+- STA mode: `http://<device-ip>/`
+
+### Pages
+
+| Page | URL | Description |
+|------|-----|-------------|
+| **Gallery** | `/index.html` | Browse, upload, delete, copy, set active image |
+| **Display** | `/display.html` | Brightness, contrast, saturation, gamma, RGB gain |
+| **Firmware** | `/firmware.html` | OTA upload, boot slot status and override |
+| **Network** | `/network.html` | AP / STA / fallback AP / static IP settings |
+| **NTP** | `/ntp.html` | NTP server, GMT offset, daylight saving, force sync |
+| **Date & Time** | `/datetime.html` | Manual RTC date/time override |
+| **Wake-up** | `/wakeup.html` | Deep sleep schedule and target hour |
+| **mDNS** | `/mdns.html` | mDNS hostname |
+| **Language** | `/language.html` | UI language (EN / HU) |
+| **Settings** | `/settings.html` | Theme, CPU scaling, image dimensions |
+| **User** | `/user.html` | Admin username / password |
+| **Stats** | `/stats.html` | Flash, RAM, CPU, uptime, battery |
+| **Registry** | `/registry.html` | NVS key browser |
+
+### REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/login` | POST | Authenticate, receive session cookie |
+| `/api/logout` | POST | Invalidate session |
+| `/api/page` | GET | Load page HTML by key |
+| `/api/images` | GET | List images on active storage |
+| `/api/images/<name>` | GET | Download image file |
+| `/api/images/thumb/<name>` | GET | Download thumbnail |
+| `/api/images/thumbs/` | GET | Batch thumbnail listing |
+| `/api/images/upload` | POST | Upload image file |
+| `/api/images/copy` | POST | Copy image between storages |
+| `/api/images/import-url` | POST | Import image from URL |
+| `/api/images/delete` | POST | Delete image(s), supports glob |
+| `/api/images/swap` | POST | Move image to other storage |
+| `/api/images/default` | POST | Set active display image |
+| `/api/status` | GET | Device status JSON |
+| `/api/stats` | GET | Detailed system statistics |
+| `/api/config` | GET | Current configuration JSON |
+| `/api/config/save` | POST | Save configuration |
+| `/api/display/save` | POST | Save color rendering settings |
+| `/api/network/save` | POST | Save WiFi settings |
+| `/api/mdns/save` | POST | Save mDNS settings |
+| `/api/ntp/save` | POST | Save NTP settings |
+| `/api/ntp/sync` | POST | Force NTP sync |
+| `/api/datetime/save` | POST | Set RTC date and time manually |
+| `/api/language/save` | POST | Save UI language |
+| `/api/user/save` | POST | Change admin credentials |
+| `/api/user/restore` | POST | Restore default admin credentials |
+| `/api/wakeup/save` | POST | Save deep sleep schedule |
+| `/api/ota/status` | GET | OTA partition slot status |
+| `/api/ota/upload` | POST | Upload firmware binary |
+| `/api/reboot` | POST | Restart → Maintenance Mode |
+| `/api/restart` | POST | Restart → Photo Frame Mode |
+| `/api/factory/reset` | POST | Wipe NVS and restart |
+| `/api/rtc/sync` | POST | Sync RTC from system time |
+| `/api/rtc/now` | GET | Current RTC time |
 
 ## 🛠️ Build
 
 ### Requirements
-- [PlatformIO](https://platformio.org/)
-- ESP32-S3 toolchain (arduino-esp32 >= 2.0.3)
+
+- [PlatformIO](https://platformio.org/) IDE or CLI
+- ESP32-S3 Arduino framework (`espressif32`)
 
 ### Commands
+
 ```bash
-# Build
-pio run
+# Build firmware
+pio run -e photo_frame_cl_01
 
 # Upload firmware
-pio run -t upload
+pio run -e photo_frame_cl_01 -t upload
 
-# Upload filesystem (LittleFS)
-pio run -t uploadfs
+# Upload LittleFS image (initial provisioning)
+pio run -e photo_frame_cl_01 -t uploadfs
 
-# Run tests (native)
+# Run native unit tests
 pio test -e native
 
-# Monitor serial
+# Serial monitor
 pio device monitor
 ```
 
-## ⚙️ Configuration
+### Partition Layout
 
-Place `config.ini` in SD Card or LittleFS root (`/config.ini`):
-
-```ini
-[device]
-appname = PHOTO FRAME CL01
-version = v1.0
-
-[display]
-jpg_brightness = 25         ; 0-100%
-jpg_contrast = 75           ; 0-100%
-jpg_gamma = 125             ; gamma correction
-image_file =                ; current image file
-
-[ntp]
-ntp_server = pool.ntp.org
-ntp_port = 123
-ntp_gmt_offset = 7200       ;GMT+2 in seconds
-ntp_update = 60000          ; update interval ms
-
-[ap mode]
-ap_enable = true
-ap_ssid = PhotoFrameCL01
-ap_password = 123456789
-ap_ip = 192.168.4.1
-ap_gateway = 192.168.4.1
-ap_subnet = 255.255.255.0
-
-[sta mode]
-sta_ssid = YourNetwork
-sta_password = YourPassword
-
-[static ip]
-sta_enable = false
-sta_ip = 192.168.0.83
-sta_gateway = 192.168.0.1
-sta_subnet = 255.255.255.0
-sta_dns1 = 192.168.0.1
-sta_dns2 = 8.8.8.8
-
-[mdns]
-mdns_enable = false
-mdns_hostname = photoframecl01
-
-[timer]
-wake_up = 5                 ; 1=10sec, 2=1min, 3=1hour, 4=12hour, 5=Daily, 6=Weekly, 7=Monthly
-wake_up_hour = 6            ; target hour (0-23) for Daily/Weekly/Monthly wake-up
-
-[storage]
-default_file_system = sdcard ; sdcard | littlefs
-fallback_enabled = true      ; smart fallback if images empty
-```
-
-> `image_updated_at` is an internal metadata value stored in NVS (`dsp.file.upd`).
-> It is intentionally not part of `config.ini` and cannot be queried or modified via `config`.
-
-### Wake-up Schedule
-
-The `wake_up_hour` setting (0–23) controls when the device wakes from deep sleep for the **Daily**, **Weekly** and **Monthly** timer modes. The device calculates the exact seconds remaining until the target hour using the RTC clock.
-
-| Timer Mode | Behavior |
-|------------|----------|
-| 10sec / 1min / 1hour / 12hour | Fixed interval, `wake_up_hour` ignored |
-| **Daily** | Wakes at the configured hour every day |
-| **Weekly** | Wakes at the configured hour + 6 days |
-| **Monthly** | Wakes at the configured hour + 29 days |
-
-```
-config wake_up_hour 8       # Set wake-up to 08:00
-config wake_up 5            # Set timer to Daily mode
-```
-
-## 🧩 Firmware (OTA)
-
-This project uses a dual-slot OTA layout (`ota_0` + `ota_1`) controlled by the `otadata` partition.
-
-- **Applying update**: upload `firmware.bin` and `firmware.sha256` into `/firmware/` on the active storage, then run `fwupdate verify` and `fwupdate run`.
-- **Which slot is running**: use `bootpart status` (shows Running/Boot partitions).
-- **Force boot slot**: use `bootpart ota0` or `bootpart ota1`, then `reboot`.
-- **USB upload note**: a plain USB upload typically writes the firmware at `0x10000` (often `ota_0`). If the device still boots the other slot, set it explicitly with `bootpart`.
+| Partition | Type | Size | Description |
+|-----------|------|------|-------------|
+| `nvs` | data/nvs | 16 KB | Configuration storage |
+| `otadata` | data/ota | 8 KB | OTA boot slot tracking |
+| `ota_0` | app | 3072 KB | Firmware slot 0 |
+| `ota_1` | app | 3072 KB | Firmware slot 1 |
+| `littlefs` | data | 10112 KB | Internal file storage |
+| `coredump` | data | 64 KB | Crash dump |
 
 ## 🔌 Pin Configuration
 
-| Pin | Function | Description |
-|-----|----------|-------------|
-| GPIO21 | Button 1 | Wake from deep sleep, Enter maintenance mode |
-| GPIO48 | Button 2 | Factory reset (hold 30 sec) |
-| GPIO14 | Battery ADC | Battery voltage measurement |
-| GPIO18 | RTC SDA (I2C) | PCF8563 real-time clock data line |
-| GPIO17 | RTC SCL (I2C) | PCF8563 real-time clock clock line |
-| GPIO40 | SD MISO | SD Card data out (Master In Slave Out) |
-| GPIO41 | SD MOSI | SD Card data in (Master Out Slave In) |
-| GPIO39 | SD SCK | SD Card serial clock |
+| GPIO | Function | Description |
+|------|----------|-------------|
+| GPIO4 | Btn1 | Next image (dev mode only) |
+| GPIO0 | Btn2 | Factory reset (hold 30 sec) |
+| GPIO5 | Btn3 | Enter Maintenance Mode (long-press) |
+| GPIO42 | ActLed | Activity LED |
+| GPIO47 | I2C SDA | RTC (PCF8563) + Audio codec |
+| GPIO48 | I2C SCL | RTC (PCF8563) + Audio codec |
+| GPIO14 | I2S MCLK | Audio codec master clock |
+| GPIO16 | I2S WS | Audio codec word select |
+| GPIO15 | I2S BCLK | Audio codec bit clock |
+| GPIO17 | I2S DOUT | Audio codec data out |
+| GPIO7 | Codec PA | Audio power amplifier enable |
+| GPIO40 | SD MISO | SD Card data out |
+| GPIO41 | SD MOSI | SD Card data in |
+| GPIO39 | SD SCK | SD Card clock |
 | GPIO38 | SD CS | SD Card chip select |
+
+## 🧪 Testing
+
+Unit tests run on the native host environment — no hardware required:
+
+```bash
+pio test -e native
+```
+
+| Suite | Coverage |
+|-------|----------|
+| `test_BootPartitionCommand` | OTA boot slot command parsing |
+| `test_Button` | Debounce, short/long press callbacks |
+| `test_ConfigCommand` | Config key/value command parsing |
+| `test_Configuration` | NVS config round-trip, defaults |
+| `test_DashboardCpuScaling` | CPU demand window logic, page key routing, inactivity timeout |
+| `test_DashboardInternetEnable` | AP/STA internet flag mapping |
+| `test_DashboardStats` | File size formatting |
+| `test_DateCommand` | Date/RTC command parsing |
+| `test_ESP32` | ESP32-specific utility assertions |
+| `test_MainWakeRouting` | Boot mode decision logic |
+| `test_NTP` | NTP time utility functions |
+| `test_RTC` | PCF8563 time math |
+| `test_SDCard` | SD Card path and file utilities |
+| `test_Sound` | Sound sequence logic |
+| `test_Storage` | Storage fallback routing |
+| `test_Utils` | Glob matching, path parsing, string utils |
 
 ## 📦 Dependencies
 
-- [LilyGoEPD47](https://github.com/Xinyuan-LilyGO/LilyGo-EPD47) — E-Paper driver
-- [JPEGDEC](https://github.com/bitbank2/JPEGDEC) — JPEG decoder
-- [ArduinoHttpClient](https://github.com/arduino-libraries/ArduinoHttpClient) — HTTP client
-- [Unity](https://github.com/ThrowTheSwitch/Unity) — Unit testing
-
-## 🔋 Power Management
-
-- **Photo Frame Mode**: Display image → deep sleep → wake by timer or button
-- **Deep Sleep Current**: ~10µA (with RTC backup)
-- **Wake-up Sources**: 
-  - Timer (configurable: 10sec to monthly)
-  - Scheduled hour (0–23) for Daily, Weekly and Monthly modes
-  - Button press (GPIO21, EXT1 wakeup)
-- **RTC Backup**: PCF8563 maintains accurate time during sleep
-- **Low Battery**: Auto-shutdown at configurable voltage threshold
+| Library | Purpose |
+|---------|---------|
+| [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) | Async TCP stack |
+| [EPaperDriver](lib/EPaperDriver) | Color e-paper low-level driver (local) |
+| [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer) | Async HTTP server |
+| [JPEGDEC](https://github.com/bitbank2/JPEGDEC) | JPEG decoder |
+| [Unity](https://github.com/ThrowTheSwitch/Unity) | Unit testing framework |
 
 ## 📄 License
 
 MIT License
 
-Copyright (c) 2025-2026 Szeklerman
+Copyright (c) 2025–2026 Szeklerman
