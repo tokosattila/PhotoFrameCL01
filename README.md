@@ -17,7 +17,7 @@ The project is designed around three goals:
 
 ## 2. Video
 
-| [![Dashboard](docs/images/pic05.jpg)](docs/video/dashboard.mp4) |
+| <a href="docs/videos/dashboard.mp4"><img src="docs/images/pic05.jpg" alt="Dashboard" /></a> |
 |:---:|
 | *Dashboard demo* |
 
