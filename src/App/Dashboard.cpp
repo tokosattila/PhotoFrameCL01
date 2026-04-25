@@ -43,6 +43,10 @@ namespace App {
     mRestartPending = false;
     mResetPending = false;
     mLastBroadcast = 0;
+    mLastPageHighPerformanceRequestMs = 0;
+    mLastMediaHighPerformanceRequestMs = 0;
+    mLastOtaHighPerformanceRequestMs = 0;
+    mCpuHighPerformance = false;
     mLastStatusCacheRefreshMs = 0;
     mLastStatsCacheRefreshMs = 0;
     mStatsCacheDirty = true;
@@ -921,17 +925,57 @@ namespace App {
     return DashboardLayout_::BuildPageDocument(tErrorPage, tConfig);
   }
 
+  bool Dashboard_::IsHighPerformancePageKey(const String &tPageKey) {
+    return tPageKey == "index" || tPageKey == "firmware";
+  }
+
+  void Dashboard_::MarkHighPerformanceRequest(EHighPerformanceWorkload tWorkload, uint32_t tNow) {
+    Guard tLock;
+    const uint32_t tRequestMs = tNow ? tNow : millis();
+    if (tWorkload == EHighPerformanceWorkload::Ota) mLastOtaHighPerformanceRequestMs = tRequestMs;
+    else if (tWorkload == EHighPerformanceWorkload::Media) mLastMediaHighPerformanceRequestMs = tRequestMs;
+    else mLastPageHighPerformanceRequestMs = tRequestMs;
+  }
+
+  void Dashboard_::EvaluateCpuPerformance(uint32_t tNow) {
+    bool tSwitchToHigh = false;
+    bool tSwitchToLow = false;
+    {
+      Guard tLock;
+      const bool tDynamicCpuScalingEnabled = mCfg.Dashboard.DynamicCpuScaling;
+      const bool tPageDemand = mLastPageHighPerformanceRequestMs != 0 && static_cast<uint32_t>(tNow - mLastPageHighPerformanceRequestMs) < kPageHighPerformanceHoldMs;
+      const bool tMediaDemand = mLastMediaHighPerformanceRequestMs != 0 && static_cast<uint32_t>(tNow - mLastMediaHighPerformanceRequestMs) < kMediaHighPerformanceHoldMs;
+      const bool tOtaDemand = mLastOtaHighPerformanceRequestMs != 0 && static_cast<uint32_t>(tNow - mLastOtaHighPerformanceRequestMs) < kOtaHighPerformanceHoldMs;
+      const bool tHighPerfDemand = tDynamicCpuScalingEnabled && (tPageDemand || tMediaDemand || tOtaDemand);
+      if (tHighPerfDemand && !mCpuHighPerformance) {
+        mCpuHighPerformance = true;
+        tSwitchToHigh = true;
+      } else if (!tHighPerfDemand && mCpuHighPerformance) {
+        mCpuHighPerformance = false;
+        tSwitchToLow = true;
+      }
+    }
+    if (tSwitchToHigh) {
+      UTL.SetCPUFrequency(ECPUFrequency::F240MHz);
+      xLOG("Dashboard CPU frequency → 240MHz");
+    } else if (tSwitchToLow) {
+      UTL.SetCPUFrequency(ECPUFrequency::F160MHz);
+      xLOG("Dashboard CPU frequency → 160MHz");
+    }
+  }
+
   void Dashboard_::HandleEvents() {
     AsyncWebSocket *tWebSocket = nullptr;
     bool tBroadcastStatus = false;
     bool tRefreshStatusCache = false;
     FDefaultCallback tResetCallback = nullptr;
     FDefaultCallback tRebootCallback = nullptr;
+    uint32_t tNow = 0;
     {
       Guard tLock;
       PurgeExpired();
       tWebSocket = mWebSocket;
-      const uint32_t tNow = millis();
+      tNow = millis();
       if (static_cast<uint32_t>(tNow - mLastStatusCacheRefreshMs) >= kStatusCacheRefreshIntervalMs) {
         tRefreshStatusCache = true;
         mLastStatusCacheRefreshMs = tNow;
@@ -951,6 +995,7 @@ namespace App {
         tRebootCallback = mOnReboot;
       }
     }
+    EvaluateCpuPerformance(tNow);
     if (tRefreshStatusCache) {
       char tStatusJson[kSmallJsonSize] = "{}";
       BuildStatusJson(tStatusJson, sizeof(tStatusJson));
@@ -1053,10 +1098,16 @@ namespace App {
       if (!mSessions[tIndex].Active) continue;
       if (strcmp(mSessions[tIndex].Token, tToken) == 0) {
         mSessions[tIndex].LastSeenMs = tNow;
+        mLastActivityMs = tNow;
         return true;
       }
     }
     return false;
+  }
+
+  uint32_t Dashboard_::GetLastActivityMs() const {
+    Guard tLock;
+    return mLastActivityMs;
   }
 
   bool Dashboard_::AuthorizeRequest(AsyncWebServerRequest *tRequest) {
@@ -1141,6 +1192,7 @@ namespace App {
     };
     auto tServePage = [this](AsyncWebServerRequest *tRequest, const SDashboardPageDefinition *tPage) {
       if (!tRequest || !tPage) return;
+      if (IsHighPerformancePageKey(String(tPage->Key ? tPage->Key : ""))) MarkHighPerformanceRequest(EHighPerformanceWorkload::Page);
       if (tPage->ShowSidebar && !AuthorizeRequest(tRequest)) {
         const String tPagePath = (tPage->Path && tPage->Path[0]) ? String(tPage->Path) : tRequest->url();
         const String tLoginUrl = BuildLoginRedirectUrl(tRequest, tPagePath);
@@ -1232,6 +1284,7 @@ namespace App {
       tRequest->send(tCode, "text/html;charset=utf-8", BuildErrorHtml(tCode, tAuthorized));
     });
     mServer.on("/api/page", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      if (IsHighPerformancePageKey(ResolvePageKeyFromRequest(tRequest))) MarkHighPerformanceRequest(EHighPerformanceWorkload::Page);
       HandlePageData(tRequest);
     });
     mServer.on("/api/login", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
@@ -1241,29 +1294,38 @@ namespace App {
       HandleLogout(tRequest);
     });
     mServer.on(AsyncURIMatcher::prefix("/api/images/thumbs/"), HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageThumb(tRequest);
     });
     mServer.on(AsyncURIMatcher::prefix("/api/images/thumb/"), HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageThumb(tRequest);
     });
     mServer.on(AsyncURIMatcher::prefix("/api/images/"), HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageFile(tRequest);
     });
     mServer.on("/api/images", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImagesList(tRequest);
     });
     mServer.on("/api/images/upload", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageDone(tRequest);
     }, [this](AsyncWebServerRequest *tRequest, const String &tFilename, size_t tIndex, uint8_t *tData, size_t tLength, bool tFinal) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageUpload(tRequest, tFilename, tIndex, tData, tLength, tFinal);
     });
     mServer.on("/api/images/copy", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageCopy(tRequest);
     });
     mServer.on("/api/images/import-url", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageImportUrl(tRequest);
     });
     mServer.on("/api/images/delete", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       String *tBody = static_cast<String *>(tRequest ? tRequest->_tempObject : nullptr);
       const String tJsonBody = tBody ? *tBody : String();
       HandleImageDelete(tRequest, tJsonBody);
@@ -1283,9 +1345,11 @@ namespace App {
       if (tBody) tBody->concat(reinterpret_cast<const char *>(tData), tLength);
     });
     mServer.on("/api/images/swap", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageRename(tRequest);
     });
     mServer.on("/api/images/default", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Media);
       HandleImageSetCurrent(tRequest);
     });
     mServer.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
@@ -1331,11 +1395,14 @@ namespace App {
       HandleStats(tRequest);
     });
     mServer.on("/api/ota/status", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Ota);
       HandleOtaStatus(tRequest);
     });
     mServer.on("/api/ota/upload", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Ota);
       HandleOtaDone(tRequest);
     }, [this](AsyncWebServerRequest *tRequest, const String &tFilename, size_t tIndex, uint8_t *tData, size_t tLength, bool tFinal) {
+      MarkHighPerformanceRequest(EHighPerformanceWorkload::Ota);
       HandleOtaUpload(tRequest, tFilename, tIndex, tData, tLength, tFinal);
     });
     mServer.on("/api/reboot", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
@@ -2117,6 +2184,12 @@ namespace App {
         tConfig.Dashboard.Password = String(tPasswordHash);
       }
     }
+    if (tHasParameter("dashboard.dynamic_cpu_scaling")) {
+      String tDynamicCpuScaling = tGetParameter("dashboard.dynamic_cpu_scaling");
+      tDynamicCpuScaling.trim();
+      tDynamicCpuScaling.toLowerCase();
+      tConfig.Dashboard.DynamicCpuScaling = (tDynamicCpuScaling == "1" || tDynamicCpuScaling == "true" || tDynamicCpuScaling == "on" || tDynamicCpuScaling == "yes");
+    }
   }
 
   void Dashboard_::HandleImagesList(AsyncWebServerRequest *tRequest) {
@@ -2760,7 +2833,7 @@ namespace App {
     const String tDashboardImageExt = NormalizeDashboardImageExtension(tConfig.Dashboard.ImageExt);
     std::vector<String> tEnabledLanguages = tConfig.Dashboard.EnabledLanguages;
     DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tDashboardLanguage);
-    tAppend("\"dashboard\":{\"user\":\"%s\",\"has_password\":%s,\"language\":\"%s\",\"enabled_languages\":[", tConfig.Dashboard.User.c_str(), tConfig.Dashboard.Password.isEmpty() ? "false" : "true", tDashboardLanguage.c_str());
+    tAppend("\"dashboard\":{\"user\":\"%s\",\"has_password\":%s,\"language\":\"%s\",\"dynamic_cpu_scaling\":%s,\"enabled_languages\":[", tConfig.Dashboard.User.c_str(), tConfig.Dashboard.Password.isEmpty() ? "false" : "true", tDashboardLanguage.c_str(), tConfig.Dashboard.DynamicCpuScaling ? "true" : "false");
     for (size_t tIndex = 0; tIndex < tEnabledLanguages.size(); tIndex++) {
       if (tIndex > 0) tAppend(",");
       tAppend("\"%s\"", EscapeJsonText(tEnabledLanguages[tIndex]).c_str());

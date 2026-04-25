@@ -35,6 +35,7 @@ namespace App {
       void Start();
       void Stop();
       void HandleEvents();
+      uint32_t GetLastActivityMs() const;
     private:
       Dashboard_();
       Dashboard_(const Dashboard_&) = delete;
@@ -46,16 +47,24 @@ namespace App {
       struct SWebSocketClientContext {
         char Token[65] = {};
       };
+      enum class EHighPerformanceWorkload : uint8_t {
+        Page = 0,
+        Media = 1,
+        Ota = 2
+      };
       static constexpr uint8_t kMaxSessions = 3;
       static constexpr uint32_t kSessionTtlSec = 30 * 60;
       static constexpr uint32_t kBroadcastIntervalMs = 60 * 1000;
       static constexpr uint32_t kStatusCacheRefreshIntervalMs = 1000;
       static constexpr uint32_t kStatsCacheRefreshIntervalMs = 1000;
       static constexpr uint32_t kOtaProgressBroadcastIntervalMs = 250;
-      static constexpr uint32_t kOtaFinalizeTimeoutMs = 20000;
-      static constexpr uint32_t kStorageStatsCacheTtlMs = 5000;
-      static constexpr uint32_t kIndexDataCacheRefreshIntervalMs = 3000;
+      static constexpr uint32_t kOtaFinalizeTimeoutMs = 20 * 1000;
+      static constexpr uint32_t kStorageStatsCacheTtlMs = 5 * 1000;
+      static constexpr uint32_t kIndexDataCacheRefreshIntervalMs = 3 * 1000;
       static constexpr uint32_t kRestartActionDelayMs = 3 * 1000;
+      static constexpr uint32_t kPageHighPerformanceHoldMs = 6 * 1000;
+      static constexpr uint32_t kMediaHighPerformanceHoldMs = 10 * 1000;
+      static constexpr uint32_t kOtaHighPerformanceHoldMs = 45 * 1000;
       static constexpr size_t kSmallJsonSize = 512;
       static constexpr size_t kConfigJsonSize = 2 * 1024;
       static constexpr size_t kImagesJsonSize = 8 * 1024;
@@ -68,6 +77,10 @@ namespace App {
       FDefaultCallback mOnReboot = nullptr;
       FDefaultCallback mOnReset = nullptr;
       uint32_t mLastBroadcast = 0;
+      uint32_t mLastPageHighPerformanceRequestMs = 0;
+      uint32_t mLastMediaHighPerformanceRequestMs = 0;
+      uint32_t mLastOtaHighPerformanceRequestMs = 0;
+      bool mCpuHighPerformance = false;
       SSession mSessions[kMaxSessions] = {};
       char mCachedUser[64] = {};
       char mCachedPassHash[65] = {};
@@ -79,6 +92,7 @@ namespace App {
       uint32_t mLastStatsCacheRefreshMs = 0;
       char mCachedStatusJson[kSmallJsonSize] = "{}";
       char mCachedStatsJson[kStatsJsonSize] = "{}";
+      uint32_t mLastActivityMs = 0;
       bool mStatsCacheDirty = true;
       String mCachedPageStatsDataJson = "";
       uint32_t mLastStorageStatsCacheMs = 0;
@@ -143,6 +157,9 @@ namespace App {
       static void AppendStatsDataJson(String &tJson, const SAppConfig &tConfig, uint64_t tSdUsedBytes, uint64_t tSdTotalBytes, uint64_t tLfsUsedBytes, uint64_t tLfsTotalBytes);
       static void AppendOtherPageDataJson(String &tJson, const String &tPageKey, const SAppConfig &tConfig, const String &tDashboardLanguage, const String &tStorageDefaultKey, unsigned long tTimestamp, int32_t tUtcOffsetMinutes, const String &tTimeZone);
       static String BuildErrorHtml(int tCode, bool tAuthorized);
+      static bool IsHighPerformancePageKey(const String &tPageKey);
+      void MarkHighPerformanceRequest(EHighPerformanceWorkload tWorkload = EHighPerformanceWorkload::Page, uint32_t tNow = 0);
+      void EvaluateCpuPerformance(uint32_t tNow);
       void RefreshDataCachesIfNeeded(bool tForce = false);
       void MarkGalleryCacheDirty();
       void RefreshGalleryCacheIfNeeded(bool tForce = false);

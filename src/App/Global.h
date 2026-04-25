@@ -271,6 +271,7 @@ namespace App {
     std::vector<String> EnabledLanguages;
     String Theme = "light";
     bool ShowDescription = true;
+    bool DynamicCpuScaling = true;
     uint16_t TargetWidth = 0;
     uint16_t TargetHeight = 0;
     uint16_t ThumbWidth = 0;
@@ -364,6 +365,8 @@ namespace App {
   constexpr uint32_t DELAY_MEDIUM_MS = ONE_SECOND_MS / 5;
   constexpr uint32_t DELAY_HALF_SEC_MS = ONE_SECOND_MS / 2;
   constexpr uint32_t DELAY_ONE_SEC_MS = ONE_SECOND_MS;
+
+  constexpr uint32_t MAINTENANCE_INACTIVITY_TIMEOUT_MS = 5 * 60 * ONE_SECOND_MS;
 
   constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 30 * ONE_SECOND_MS;
   constexpr uint32_t WIFI_RETRY_COUNT = 20;

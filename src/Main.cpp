@@ -191,8 +191,7 @@ class Application {
 
     void MaintenanceMode() {
       ReloadConfig();
-      const bool tBatteryConnected = BAT.IsAvailable() && BAT.IsBatteryConnected();
-      UTL.SetCPUFrequency(tBatteryConnected ? ECPUFrequency::F240MHz : ECPUFrequency::F240MHz);
+      UTL.SetCPUFrequency(ECPUFrequency::F160MHz);
       LED.On(mCfg.Device.ActLedPin);
       {
         char tText[45] = "";
@@ -275,18 +274,15 @@ class Application {
         xTaskCreatePinnedToCore(&DashboardTask, "DashboardTask", DASHBOARD_TASK_STACK_SIZE, nullptr, 11, nullptr, 1);
         sDashboardTaskStarted = true;
       }
-      bool tMaintenanceSoundPlayed = false;
+      vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
+      const bool tMaintenanceSoundPlayed = SND.Play(kMaintenanceSound);
+      xLOG("Sound playback → %s", tMaintenanceSoundPlayed ? "Ok" : "Failed");
       const uint32_t tWifiTimeoutMs = 5 * ONE_SECOND_MS;
       const uint32_t tWifiStartMs = millis();
       while (!CON.HasActiveWifiClient() && (millis() - tWifiStartMs) < tWifiTimeoutMs) {
         vTaskDelay(DELAY_MEDIUM_MS / portTICK_PERIOD_MS);
       }
       if (!CON.HasActiveWifiClient()) xLOG("WiFi client connect timeout");
-      vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
-      if (!tMaintenanceSoundPlayed) {
-        tMaintenanceSoundPlayed = SND.Play(kMaintenanceSound);
-        xLOG("Sound playback → %s", tMaintenanceSoundPlayed ? "Ok" : "Failed");
-      }
       if (tIsApMode) DSP.FillRect(0, tInfoTextY, mCfg.Display.Width, 50, EDisplayColor::White);
       DSP.SetFont(&OpenSans13B);
       DSP.SetColor(EDisplayColor::Black);
@@ -296,7 +292,26 @@ class Application {
       DSP.WriteText(0, tInfoTextY, tTitleBuffer, EDisplayHAlignment::Center);
       DSP.Update();
       UTL.PrintMemoryInfo();
-      while (true) vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
+      const uint32_t tMaintenanceStartMs = millis();
+      while (true) {
+        vTaskDelay(DELAY_ONE_SEC_MS / portTICK_PERIOD_MS);
+        const uint32_t tLastActivity = DSH.GetLastActivityMs();
+        const uint32_t tRef = tLastActivity > 0 ? tLastActivity : tMaintenanceStartMs;
+        if (static_cast<uint32_t>(millis() - tRef) >= MAINTENANCE_INACTIVITY_TIMEOUT_MS) {
+          xLOG("Maintenance inactivity timeout reached");
+          xLOG("Restarting to Photo Frame Mode");
+          DSH.Stop();
+          {
+            Guard tLock;
+            DSP.OffAll();
+            STG.End();
+            CON.Stop();
+          }
+          vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
+          esp_restart();
+          __builtin_unreachable();
+        }
+      }
     }
 
     void LowBatteryMode() {

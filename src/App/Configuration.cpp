@@ -142,6 +142,7 @@ namespace App {
     tDefaultConfig.Dashboard.EnabledLanguages = {"en", "hu"};
     tDefaultConfig.Dashboard.Theme = "light";
     tDefaultConfig.Dashboard.ShowDescription = true;
+    tDefaultConfig.Dashboard.DynamicCpuScaling = true;
     tDefaultConfig.Dashboard.TargetWidth = DASHBOARD_IMG_WIDTH;
     tDefaultConfig.Dashboard.TargetHeight = DASHBOARD_IMG_HEIGHT;
     tDefaultConfig.Dashboard.ThumbWidth = DASHBOARD_IMG_THUMB_WIDTH;
@@ -331,6 +332,7 @@ namespace App {
         tCfg.Language);
       tCfg.Theme = mConfig.getString(kNvsDashTheme, tDefaultConfig.Dashboard.Theme);
       tCfg.ShowDescription = mConfig.getBool(kNvsDashShowDescription, tDefaultConfig.Dashboard.ShowDescription);
+      tCfg.DynamicCpuScaling = mConfig.getBool(kNvsDashDynamicCpuScaling, tDefaultConfig.Dashboard.DynamicCpuScaling);
     });
     if (!tCfg.Language.length()) tCfg.Language = "en";
     tCfg.Theme.trim();
@@ -471,6 +473,7 @@ namespace App {
       tPutString(kNvsDashEnabledLanguages, tEnabledLanguagesValue);
       tPutString(kNvsDashTheme, tDashboardTheme);
       tPutBool(kNvsDashShowDescription, mConfig.putBool(kNvsDashShowDescription, tConfig.Dashboard.ShowDescription));
+      tPutBool(kNvsDashDynamicCpuScaling, mConfig.putBool(kNvsDashDynamicCpuScaling, tConfig.Dashboard.DynamicCpuScaling));
     });
     if (tSuccess) xLOG("Config save successful");
     else xLOG("Config save failed, key → %s", tFailedKey ? tFailedKey : "unknown");

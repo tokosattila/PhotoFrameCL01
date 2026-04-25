@@ -86,6 +86,7 @@ namespace App {
       static constexpr const char *kNvsDashEnabledLanguages = "dsh.langs";
       static constexpr const char *kNvsDashTheme = "dsh.theme";
       static constexpr const char *kNvsDashShowDescription = "dsh.desc";
+      static constexpr const char *kNvsDashDynamicCpuScaling = "dsh.cpu.dyn";
       static SAppConfig GetDefaultConfig();
       bool Begin(bool tReadOnly);
       void End();
