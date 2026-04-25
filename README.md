@@ -1,25 +1,54 @@
-﻿# Photo Frame CL01 (Spectra6 Color E-Ink)
+﻿# Photo Frame CL01 (Spectra E6 Color E-Ink)
 
-Photo Frame CL01 is an ESP32-S3 based, production-oriented color e-paper photo frame firmware for LilyGo T5 4.7" E-Paper Plus boards.
+Color e-ink digital photo frame with image management and configuration via a built-in web dashboard. Features deep sleep scheduling with RTC backup, dual OTA firmware update slots, and NVS-backed configuration for extended autonomous operation.
 
 The project is designed around three goals:
 1. Low-power autonomous image display with deep sleep.
 2. Reliable maintenance workflows through a built-in web dashboard.
 3. Robust field operation with NVS-backed configuration, dual OTA partitions, and storage fallback.
 
-## 1. Scope and Hardware Target
 
-- MCU: ESP32-S3
-- Display: EPD_7IN3E class, 800x480 Spectra6 color e-paper
-- Flash: 16 MB (dual OTA app slots + LittleFS)
-- PSRAM: 8 MB OPI
-- External RTC: PCF8563 (I2C)
-- Storage: SD Card + LittleFS fallback
-- Audio: I2S codec tone output
+## 1. Photo Gallery
 
-This firmware targets the LilyGo T5 4.7" E-Paper Plus hardware generation. For the older WROVER-E based variant, use PhotoFrameGS01.
+| <img src="docs/images/pic01.jpg" width="240px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="240px" alt="Photo Frame Hardware" /> | <img src="docs/images/pic03.jpg" width="240px" alt="Photo Frame Back Side" /> |
+|:---:|:---:|:---:|
+| *Photo frame in operation* | *Hardware back side* | *Back cover installed* |
 
-## 2. System Architecture
+## 2. Video
+
+| [![Dashboard](docs/images/pic05.jpg)](docs/video/dashboard.mp4) |
+|:---:|
+| *Dashboard demo* |
+
+## 3. Hardware
+
+<table width="100%">
+<tr>
+<td align="center" style="padding:10px!important">
+
+| Component | Specification |
+|-----------|--------------|
+| **Board** | ESP32-S3-WROOM-1-N16R8 (Waveshare) |
+| **MCU** | ESP32-S3 |
+| **Display** | 7.3 inch Spectra E6, full color e-paper, 800x480px |
+| **Flash** | 16MB |
+| **PSRAM** | 8MB |
+| **RTC** | PCF8563 I2C RTC chip |
+| **Storage** | SD Card SPI |
+| **Audio** | ES8611 I2S DAC audio encoder chip |
+| **Battery** | AXP2101 PMU I2C Li-Ion battery management |
+
+</td>
+<td align="center"> 
+<img src="docs/images/pic04.jpg" width="370px" alt="On Board" />
+</td>
+</tr>
+</table>
+
+> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
+
+
+## 4. System Architecture
 
 The runtime is organized into focused modules under `src/App`:
 
@@ -35,9 +64,9 @@ The runtime is organized into focused modules under `src/App`:
 
 The application entrypoint in `src/Main.cpp` orchestrates initialization and mode routing.
 
-## 3. Boot Sequence and Operating Modes
+## 5. Boot Sequence and Operating Modes
 
-### 3.1 Boot Sequence
+### 5.1 Boot Sequence
 
 Startup flow (high level):
 
@@ -46,7 +75,7 @@ Startup flow (high level):
 3. Evaluate low battery condition.
 4. Route into mode based on wake source and button state.
 
-### 3.2 Photo Frame Mode
+### 5.2 Photo Frame Mode
 
 Purpose: autonomous slideshow operation with low power consumption.
 
@@ -61,7 +90,7 @@ Core behavior:
 
 If the current image is missing or unreadable, a built-in fallback image is shown.
 
-### 3.3 Maintenance Mode
+### 5.3 Maintenance Mode
 
 Purpose: online configuration and administration via local web dashboard.
 
@@ -75,7 +104,7 @@ Core behavior:
 
 Maintenance mode is intended for bounded interaction windows, then automatic return to photo-frame behavior.
 
-### 3.4 Low Battery Mode
+### 5.4 Low Battery Mode
 
 Purpose: protect battery and avoid unstable operation.
 
@@ -85,11 +114,9 @@ Core behavior:
 - Draw battery warning state to display.
 - Enter low-power sleep path.
 
-## 4. Configuration Model (NVS, No INI)
+## 6. Configuration
 
 Configuration is fully NVS-backed via `Preferences`.
-
-There is no runtime `config.ini` source of truth.
 
 On first boot, defaults are created and persisted by `Configuration_::Init()`.
 
@@ -104,13 +131,12 @@ Configuration domains include:
 
 Factory reset clears NVS config and reboots.
 
-## 5. Power, Sleep, and Wake Mechanisms
+## 7. Power, Sleep, and Wake Mechanisms
 
-### 5.1 Wake Scheduling
+### 7.1 Wake Scheduling
 
 Timer modes are enum-based and support:
 
-- Seconds
 - Minutes
 - Hourly
 - Half-day
@@ -120,13 +146,13 @@ Timer modes are enum-based and support:
 
 For Daily/Weekly/Monthly, `wake_up_hour` is respected; shorter interval modes ignore hour targeting.
 
-### 5.2 Deep Sleep Strategy
+### 7.2 Deep Sleep Strategy
 
 Photo Frame mode calculates sleep target and enters deep sleep after render completion.
 
 Wake sources include timer and button-triggered wake logic.
 
-### 5.3 CPU Frequency Control
+### 7.3 CPU Frequency Control
 
 Baseline in maintenance is 160 MHz.
 
@@ -138,9 +164,7 @@ Dynamic high-performance windows are activated on dashboard workloads:
 
 If no high-demand workload remains active, frequency returns to 160 MHz.
 
-This mechanism can be toggled in dashboard settings (`dsh.cpu.dyn`).
-
-## 6. Session and Security Model
+## 8. Session and Security Model
 
 Dashboard authentication is cookie-token based.
 
@@ -158,7 +182,7 @@ Security notes:
 - Single-admin credential model.
 - Password stored as SHA-256 hash in NVS.
 
-## 7. Maintenance Inactivity Mechanism
+## 9. Maintenance Inactivity Mechanism
 
 Maintenance loop checks last authenticated dashboard activity once per second.
 
@@ -171,7 +195,7 @@ When inactivity reaches `MAINTENANCE_INACTIVITY_TIMEOUT_MS` (currently 5 minutes
 
 This avoids leaving the device in permanent maintenance state.
 
-## 8. Storage and Media Pipeline
+## 10. Storage and Media Pipeline
 
 `Storage_` unifies SD Card and LittleFS behind one interface.
 
@@ -191,7 +215,7 @@ Media operations exposed in dashboard include:
 - Cross-storage copy/swap
 - Set current/default image
 
-## 9. Display Rendering Pipeline
+## 11. Display Rendering Pipeline
 
 `Display_` wraps low-level e-paper driver operations and rendering policies.
 
@@ -203,9 +227,9 @@ Main responsibilities:
 - Rotation support.
 - Controlled update and power-off behavior for e-paper lifecycle.
 
-## 10. Networking and Time Services
+## 12. Networking and Time Services
 
-### 10.1 Connectivity
+### 12.1 Connectivity
 
 `Connection_` supports AP and STA operation with fallback behavior.
 
@@ -216,7 +240,7 @@ Capabilities:
 - Optional mDNS hostname publishing.
 - Client presence checks used by maintenance UX.
 
-### 10.2 Time Management
+### 12.2 Time Management
 
 `NTP_` and `RTC_` cooperate to keep time stable across deep sleep cycles.
 
@@ -224,7 +248,7 @@ Capabilities:
 - RTC stores time persistently with backup source.
 - Wake-hour scheduling uses RTC/system time computations.
 
-## 11. Firmware Update (OTA) and Partitioning
+## 13. Firmware Update (OTA) and Partitioning
 
 Partition design (`partitions.csv`):
 
@@ -243,16 +267,16 @@ OTA flow:
 
 This provides rollback-friendly dual-slot behavior for remote updates.
 
-## 12. Dashboard (Detailed)
+## 14. Dashboard (Detailed)
 
 The dashboard is a first-class subsystem with embedded assets and API-driven interactions.
 
-### 12.1 Pages
+### 14.1 Pages
 
 Implemented pages include:
 
 - Login
-- Gallery/Index
+- Index/Gallery
 - Display
 - Firmware
 - Network
@@ -264,11 +288,10 @@ Implemented pages include:
 - Settings
 - User
 - Stats
-- Registry
 
 These are served from compiled assets (`Dashboard/Pages`, `Dashboard/Assets`, `Dashboard/Languages`).
 
-### 12.2 API Groups
+### 14.2 API Groups
 
 API surface is organized around:
 
@@ -280,7 +303,7 @@ API surface is organized around:
 - OTA (`/api/ota/*`)
 - System actions (`/api/reboot`, `/api/restart`, `/api/factory/reset`)
 
-### 12.3 Runtime Behaviors
+### 14.3 Runtime Behaviors
 
 Dashboard runtime includes:
 
@@ -290,7 +313,7 @@ Dashboard runtime includes:
 - CPU demand marking for performance windows.
 - Activity timestamp updates for inactivity timeout.
 
-### 12.4 Full Endpoint Inventory
+### 14.4 Full Endpoint Inventory
 
 Authentication and navigation:
 
@@ -350,7 +373,7 @@ WebSocket and static assets:
 - `GET /ws` (WebSocket upgrade)
 - Static pages, scripts, styles, SVG/images, and language assets served from embedded PROGMEM resources
 
-## 13. Build and Deployment
+## 15. Build and Deployment
 
 Project uses PlatformIO (`platformio.ini`) with `photo_frame_cl_01` as default env.
 
@@ -371,7 +394,7 @@ pio run -e photo_frame_cl_01 -t uploadfs
 pio device monitor
 ```
 
-## 14. Tooling and Utility Scripts
+## 16. Tooling and Utility Scripts
 
 `scripts/` contains project tooling for asset and firmware workflows:
 
@@ -382,23 +405,25 @@ pio device monitor
 
 These tools support repeatable asset preparation and deployment packaging.
 
-## 15. Operational Constraints and Recommended Practices
+## 17. Dependencies
 
-Constraints to account for in production:
+Project dependencies are managed via PlatformIO's library system (`platformio.ini`):
 
-- HTTP-only dashboard (LAN-trust boundary required).
-- Limited concurrent sessions.
-- Embedded resource limits (RAM/flash/partition sizes).
-- E-paper refresh characteristics (not suited for high-frame-rate interaction).
-- Storage/media quality impacts on render time.
+**Core Libraries:**
+- `AsyncTCP`: asynchronous TCP stack for ESP32
+- `ESPAsyncWebServer`: high-performance async HTTP server
+- `JPEGDEC`: JPEG decoder optimized for embedded systems
+- `Unity`: unit testing framework (native environment)
 
-Recommended practices:
+**Hardware Drivers:**
+- `EPaperDriver`: abstraction layer for e-paper display operations
+- Board support packages for ESP32-S3
 
-1. Change default admin credentials immediately.
-2. Validate NTP/RTC and wake-hour settings after first boot.
-3. Keep firmware artifact/version workflow explicit for OTA traceability.
-4. Use stable power source to avoid brownout-adjacent issues.
-5. Keep media assets resolution/format aligned with display target.
+**Build Dependencies:**
+- PlatformIO toolchain (gcc-arm-none-eabi, esptool.py)
+- Python 3.x for build scripts
+
+All dependencies are fetched automatically during build. See `platformio.ini` for pinned versions.
 
 ## License
 
