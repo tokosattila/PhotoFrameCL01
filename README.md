@@ -2,11 +2,12 @@
 
 Color e-ink digital photo frame with image management and configuration via a built-in web dashboard. Features deep sleep scheduling with RTC backup, dual OTA firmware update slots, and NVS-backed configuration for extended autonomous operation.
 
+> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
+
 The project is designed around three goals:
 1. Low-power autonomous image display with deep sleep.
 2. Reliable maintenance workflows through a built-in web dashboard.
 3. Robust field operation with NVS-backed configuration, dual OTA partitions, and storage fallback.
-
 
 ## 1. Photo Gallery
 
@@ -44,9 +45,6 @@ The project is designed around three goals:
 </td>
 </tr>
 </table>
-
-> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
-
 
 ## 4. System Architecture
 
