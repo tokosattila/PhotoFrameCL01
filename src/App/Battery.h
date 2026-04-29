@@ -25,10 +25,12 @@ namespace App {
       bool IsAvailable() const { return mAvailable; }
       uint16_t GetVoltage();
       uint8_t GetPercentage();
+      bool IsUsbPowerPresent();
       bool IsCharging();
       bool IsDischarging();
       bool IsBatteryConnected();
       bool IsLowBattery();
+      String GetStatusText();
       void PrintInfo();
     private:
       Battery_();

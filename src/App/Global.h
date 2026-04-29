@@ -179,6 +179,7 @@ namespace App {
     String Name;
     String Version;
     bool SoundEnabled = true;
+    bool LogManagerEnabled = true;
     uint8_t NextImgPin = 0;
     uint8_t ResetPin = 0;
     uint8_t SettingPin = 0;
@@ -354,7 +355,7 @@ namespace App {
   constexpr size_t LOOP_TASK_STACK_SIZE = 48 * KB;
   constexpr size_t BUTTON_TASK_STACK_SIZE = 16 * KB;
   constexpr size_t JPEG_DECODE_TASK_STACK_SIZE = 32 * KB;
-  constexpr size_t DASHBOARD_TASK_STACK_SIZE = 16 * KB;
+  constexpr size_t DASHBOARD_TASK_STACK_SIZE = 24 * KB;
 
   constexpr size_t ONE_SECOND_MS = 1000;
   constexpr uint32_t REBOOT_LONG_PRESS_MS = 3 * ONE_SECOND_MS;
@@ -372,8 +373,6 @@ namespace App {
   constexpr uint32_t WIFI_RETRY_COUNT = 20;
   constexpr uint32_t NVS_RETRY_DELAY_MS = ONE_SECOND_MS / 10;
   constexpr uint32_t CONFIG_RETRY_DELAY_MS = ONE_SECOND_MS;
-
-  extern RTC_DATA_ATTR uint32_t gBootCount;
 
 }
 
@@ -399,6 +398,7 @@ namespace App {
 #include <App/Fonts/OpenSans13b.h>
 #include <App/Images/DefaultImage.h>
 #include <App/Dashboard.h>
+#include <App/LogManager.h>
 
 #define CFG Configuration_::Instance()
 #define UTL Utils_::Instance()
@@ -415,5 +415,6 @@ namespace App {
 #define DSP Display_::Instance()
 #define FWU Firmware_::Instance()
 #define DSH Dashboard_::Instance()
+#define LGM LogManager_::Instance()
 
 #endif

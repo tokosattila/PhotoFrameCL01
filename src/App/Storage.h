@@ -22,6 +22,8 @@ namespace App {
       const char *ReadFile(const char *tPath);
       bool WriteFile(const char *tPath, const char *tContent, bool tAppend = false);
       bool DeleteFile(const char *tPath);
+      bool CreateDir(const char *tPath, bool tVerbose = false);
+      bool DeleteDir(const char *tPath);
       const char *ListDir(const char *tPath);
       size_t GetListPos() const;
       const char *GetNextFile(const char *tCurrentFile);

@@ -164,9 +164,10 @@ namespace App {
   }
 
   void Utils_::PrintBootInfo() {
-    if (gBootCount == 0) xLOG("First boot [%d]\n", gBootCount);
-    else {     
-      xLOG("Boot no. → %d", gBootCount);
+    const uint32_t tBootCount = CFG.GetBootCount();
+    if (tBootCount <= 1) xLOG("First boot [%lu]\n", (unsigned long)tBootCount);
+    else {
+      xLOG("Boot no. → %lu", (unsigned long)tBootCount);
       PrintWakeupReason();
       xLOG_PL();
     }

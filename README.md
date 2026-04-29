@@ -17,7 +17,7 @@ The project is designed around three goals:
 
 ## 2. Video
 
-| <a href="docs/videos/dashboard.mp4"><img src="docs/images/pic05.jpg" alt="Dashboard" /></a> |
+| <a href="docs/videos/dashboard.mp4"><img src="docs/images/pic04.jpg" alt="Dashboard" width="1160px" /></a> |
 |:---:|
 | *Dashboard demo* |
 
@@ -41,7 +41,7 @@ The project is designed around three goals:
 
 </td>
 <td align="center"> 
-<img src="docs/images/pic04.jpg" width="370px" alt="On Board" />
+<img src="docs/images/pic05.jpg" width="370px" alt="On Board" />
 </td>
 </tr>
 </table>
@@ -58,6 +58,7 @@ The runtime is organized into focused modules under `src/App`:
 - `Firmware_`: OTA stream handling to inactive partition.
 - `NTP_` + `RTC_`: time sync and clock persistence.
 - `Battery_` + `Sound_` + `Led_` + `Button_`: device peripherals and UX signals.
+- `LogManager_`: file-based event logger with per-level structured output, daily file rotation, and runtime enable/disable control via NVS config.
 - `Utils_`: sleep/wakeup logic, CPU frequency switching, diagnostics.
 
 The application entrypoint in `src/Main.cpp` orchestrates initialization and mode routing.
@@ -126,6 +127,8 @@ Configuration domains include:
 - NTP/RTC and wake scheduling.
 - Storage defaults and fallback policy.
 - Dashboard settings (language/theme/session-related options, dynamic CPU scaling).
+- Boot count (auto-incremented each startup, persisted in NVS).
+- LogManager enable/disable flag (controls file-based event logging at runtime).
 
 Factory reset clears NVS config and reboots.
 
@@ -284,8 +287,9 @@ Implemented pages include:
 - mDNS
 - Language
 - Settings
-- User
+- User (includes sound, LogManager enable, and other user preferences)
 - Stats
+- Error
 
 These are served from compiled assets (`Dashboard/Pages`, `Dashboard/Assets`, `Dashboard/Languages`).
 

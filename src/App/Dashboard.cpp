@@ -705,8 +705,17 @@ namespace App {
     const esp_bt_controller_status_t tBluetoothStatus = esp_bt_controller_get_status();
     const bool tBluetoothEnabled = (tBluetoothStatus == ESP_BT_CONTROLLER_STATUS_ENABLED);
     const bool tBatteryConnected = BAT.IsAvailable() && BAT.IsBatteryConnected();
-    char tBatteryText[32] = "0% [0.00V]";
-    snprintf(tBatteryText, sizeof(tBatteryText), "%u%% [%.2fV]", static_cast<unsigned>(BAT.GetPercentage()), static_cast<float>(BAT.GetVoltage()) / 1000.0f);
+    String tBatteryText = "";
+    const char *tBatterySuffixKey = nullptr;
+    if (tBatteryConnected) {
+      const uint8_t tBatteryPercent = BAT.GetPercentage();
+      const float tBatteryVoltage = static_cast<float>(BAT.GetVoltage()) / 1000.0f;
+      char tBatteryTextBuffer[48] = "0% [0.00V]";
+      snprintf(tBatteryTextBuffer, sizeof(tBatteryTextBuffer), "%u%% [%.2fV]", static_cast<unsigned>(tBatteryPercent), tBatteryVoltage);
+      tBatteryText = tBatteryTextBuffer;
+      if (BAT.IsCharging()) tBatterySuffixKey = "usb_charging";
+      else if (BAT.IsUsbPowerPresent()) tBatterySuffixKey = "usb_power";
+    }
     tJson += "\"Statistics\":{\"UptimeSeconds\":";
     tJson += String(tUptime);
     tJson += ",\"Sections\":[";
@@ -772,8 +781,13 @@ namespace App {
     tJson += "{\"LabelKey\":\"power\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"battery\",";
     if (tBatteryConnected) {
       tJson += "\"Value\":\"";
-      tJson += EscapeJsonText(String(tBatteryText));
+      tJson += EscapeJsonText(tBatteryText);
       tJson += "\"";
+      if (tBatterySuffixKey && tBatterySuffixKey[0]) {
+        tJson += ",\"ValueSuffixKey\":\"";
+        tJson += tBatterySuffixKey;
+        tJson += "\"";
+      }
     } else tJson += "\"ValueKey\":\"no_battery\"";
     tJson += "},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"uptime\",\"ValueId\":\"stats-uptime-value\",\"UptimeSeconds\":";
     tJson += String(tUptime);
@@ -894,6 +908,8 @@ namespace App {
         tJson += tConfig.Dashboard.ShowDescription ? "true" : "false";
         tJson += ",\"SoundEnabled\":";
         tJson += tConfig.Device.SoundEnabled ? "true" : "false";
+        tJson += ",\"LogManagerEnabled\":";
+        tJson += tConfig.Device.LogManagerEnabled ? "true" : "false";
         tJson += "},\"Storage\":{\"FallbackEnabled\":";
         tJson += tConfig.Storage.FallbackEnabled ? "true" : "false";
         tJson += ",\"Default\":\"";
@@ -1520,8 +1536,7 @@ namespace App {
     }
     if (strstr(tMessage, "\"type\":\"reboot\"")) {
       if (tContext && tContext->Token[0]) DestroySession(tContext->Token);
-      mRestartPending = true;
-      mRestartPendingSince = millis();
+      { Guard tLock; mRestartPending = true; mRestartPendingSince = millis(); }
       xLOG("Dashboard → reboot requested from websocket");
       tClient->text("{\"type\":\"ack\",\"ok\":true}");
       return;
@@ -2033,6 +2048,7 @@ namespace App {
     }
     if (TryGetRequestValue(tRequest, "user[preferences][show_description]", tValue)) tConfig.Dashboard.ShowDescription = ParseBoolValue(tValue);
     if (TryGetRequestValue(tRequest, "user[preferences][sound_enabled]", tValue)) tConfig.Device.SoundEnabled = ParseBoolValue(tValue);
+    if (TryGetRequestValue(tRequest, "user[preferences][log_manager_enabled]", tValue)) tConfig.Device.LogManagerEnabled = ParseBoolValue(tValue);
     if (tNewPassword.length()) {
       char tPasswordHash[65] = "";
       DashboardUtils_::Sha256Hex(reinterpret_cast<const uint8_t *>(tNewPassword.c_str()), tNewPassword.length(), tPasswordHash);
@@ -2055,6 +2071,7 @@ namespace App {
     }
     ReloadConfig();
     STG.ReloadConfig();
+    LGM.ReloadConfig();
     strncpy(mCachedUser, mCfg.Dashboard.User.c_str(), sizeof(mCachedUser) - 1);
     mCachedUser[sizeof(mCachedUser) - 1] = '\0';
     strncpy(mCachedPassHash, mCfg.Dashboard.Password.c_str(), sizeof(mCachedPassHash) - 1);
@@ -2789,6 +2806,8 @@ namespace App {
     const uint32_t tHeap = ESP.getFreeHeap();
     const uint32_t tBatteryMilliVolts = BAT.GetVoltage();
     const uint8_t tBatteryPercent = BAT.GetPercentage();
+    const bool tBatteryUsbPowerPresent = BAT.IsUsbPowerPresent();
+    const bool tBatteryCharging = BAT.IsCharging();
     const int32_t tWifiRssi = WiFi.RSSI();
     const char *tStorage = STG.GetActiveName();
     SDisplayConfig tDisplay = CFG.Get<SDisplayConfig>();
@@ -2797,7 +2816,7 @@ namespace App {
     const String tTimeZone = ResolveTimeZoneLabel();
     char tVoltBuffer[16] = "0.00";
     snprintf(tVoltBuffer, sizeof(tVoltBuffer), "%.2f", static_cast<float>(tBatteryMilliVolts) / 1000.0f);
-    int tLength = snprintf(tBuffer, tSize, "{\"ok\":true,\"error\":false,\"type\":\"status\",\"Data\":{\"DateTime\":{\"TimeStamp\":%lu,\"UtcOffsetMinutes\":%ld,\"TimeZone\":\"%s\"},\"Battery\":{\"State\":\"%s\",\"Percent\":%u,\"Volts\":%s}},\"Uptime\":%u,\"HeapFree\":%u,\"WifiRssi\":%d,\"Storage\":\"%s\",\"CurrentImage\":\"%s\"}", tTimestamp, static_cast<long>(tUtcOffsetMinutes), tTimeZone.c_str(), ResolveBatteryStateKey(), (unsigned)tBatteryPercent, tVoltBuffer, (unsigned)tUptime, (unsigned)tHeap, (int)tWifiRssi, tStorage ? tStorage : "n/a", tDisplay.CurrentFile.c_str());
+    int tLength = snprintf(tBuffer, tSize, "{\"ok\":true,\"error\":false,\"type\":\"status\",\"Data\":{\"DateTime\":{\"TimeStamp\":%lu,\"UtcOffsetMinutes\":%ld,\"TimeZone\":\"%s\"},\"Battery\":{\"State\":\"%s\",\"Percent\":%u,\"Volts\":%s,\"UsbPower\":%s,\"Charging\":%s}},\"Uptime\":%u,\"HeapFree\":%u,\"WifiRssi\":%d,\"Storage\":\"%s\",\"CurrentImage\":\"%s\"}", tTimestamp, static_cast<long>(tUtcOffsetMinutes), tTimeZone.c_str(), ResolveBatteryStateKey(), (unsigned)tBatteryPercent, tVoltBuffer, tBatteryUsbPowerPresent ? "true" : "false", tBatteryCharging ? "true" : "false", (unsigned)tUptime, (unsigned)tHeap, (int)tWifiRssi, tStorage ? tStorage : "n/a", tDisplay.CurrentFile.c_str());
     if (tLength < 0) {
       tBuffer[0] = '\0';
       return 0;

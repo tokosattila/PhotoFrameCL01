@@ -17,6 +17,8 @@ namespace App {
       bool FactoryReset();
       bool SaveImageName(const char *tValue);
       uint32_t GetImageUpdatedAt();
+      uint32_t GetBootCount();
+      uint32_t IncrementBootCount();
       bool SaveAllConfig(const SAppConfig &tConfig);
     private:
       Configuration_();
@@ -32,7 +34,9 @@ namespace App {
       static constexpr const char *kNvsDeviceConfig = "dvc.cfg";
       static constexpr const char *kNvsDeviceAppName = "dvc.appname";
       static constexpr const char *kNvsDeviceVersion = "dvc.version";
+      static constexpr const char *kNvsDeviceBootCount = "dvc.boot.cnt";
       static constexpr const char *kNvsDeviceSoundEnabled = "dvc.sound";
+      static constexpr const char *kNvsDeviceLogManagerEnabled = "dvc.log.en";
       static constexpr const char *kNvsDeviceActLedPin = "dvc.led.act";
       static constexpr const char *kNvsDisplayBrightness = "dsp.jpg.brght";
       static constexpr const char *kNvsDisplayContrast = "dsp.jpg.cntrst";

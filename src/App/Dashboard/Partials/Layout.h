@@ -399,6 +399,7 @@ namespace App {
         SetCheckedByToken(tHtml, "__C_USR_THEME__", tConfig.Dashboard.Theme == "dark");
         SetCheckedByToken(tHtml, "__C_USR_DESC__", tConfig.Dashboard.ShowDescription);
         SetCheckedByToken(tHtml, "__C_USR_FALLBACK__", tConfig.Storage.FallbackEnabled);
+        SetCheckedByToken(tHtml, "__C_USR_LOGMGR__", tConfig.Device.LogManagerEnabled);
         SetCheckedByToken(tHtml, "__C_USR_LANG_EN__", IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "en"));
         SetCheckedByToken(tHtml, "__C_USR_LANG_HU__", IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "hu"));
         SetRadioCheckedByTokens(tHtml, "__C_USR_STORAGE_SD__", "__C_USR_STORAGE_LFS__", tConfig.Storage.DefaultFileSystem == EFileSystemType::SDCard ? String("sd-card") : String("littlefs"), "sd-card");

@@ -82,6 +82,7 @@ namespace App {
     tDefaultConfig.Device.Name = "Photo Frame CL01";
     tDefaultConfig.Device.Version = "v1.0";
     tDefaultConfig.Device.SoundEnabled = true;
+    tDefaultConfig.Device.LogManagerEnabled = true;
     tDefaultConfig.Device.NextImgPin = NEXT_IMG_PIN;
     tDefaultConfig.Device.ResetPin = RESET_PIN;
     tDefaultConfig.Device.SettingPin = SETTING_PIN;
@@ -202,6 +203,7 @@ namespace App {
       tCfg.Name = mConfig.getString(kNvsDeviceAppName, tDefaultConfig.Device.Name);
       tCfg.Version = mConfig.getString(kNvsDeviceVersion, tDefaultConfig.Device.Version);
       tCfg.SoundEnabled = mConfig.getBool(kNvsDeviceSoundEnabled, tDefaultConfig.Device.SoundEnabled);
+      tCfg.LogManagerEnabled = mConfig.getBool(kNvsDeviceLogManagerEnabled, tDefaultConfig.Device.LogManagerEnabled);
       tCfg.NextImgPin = NEXT_IMG_PIN;
       tCfg.ResetPin = RESET_PIN;
       tCfg.SettingPin = SETTING_PIN;
@@ -378,6 +380,23 @@ namespace App {
     return tValue;
   }
 
+  uint32_t Configuration_::GetBootCount() {
+    uint32_t tBootCount = 0;
+    AccessConfig(true, [&]() {
+      tBootCount = mConfig.getUInt(kNvsDeviceBootCount, 0);
+    });
+    return tBootCount;
+  }
+
+  uint32_t Configuration_::IncrementBootCount() {
+    uint32_t tBootCount = 0;
+    AccessConfig(false, [&]() {
+      tBootCount = mConfig.getUInt(kNvsDeviceBootCount, 0) + 1;
+      mConfig.putUInt(kNvsDeviceBootCount, tBootCount);
+    });
+    return tBootCount;
+  }
+
   bool Configuration_::SaveAllConfig(const SAppConfig &tConfig) {
     bool tSuccess = true;
     const char *tFailedKey = nullptr;
@@ -420,6 +439,7 @@ namespace App {
       tPutString(kNvsDeviceAppName, tConfig.Device.Name);
       tPutString(kNvsDeviceVersion, tConfig.Device.Version);
       tPutBool(kNvsDeviceSoundEnabled, mConfig.putBool(kNvsDeviceSoundEnabled, tConfig.Device.SoundEnabled));
+      tPutBool(kNvsDeviceLogManagerEnabled, mConfig.putBool(kNvsDeviceLogManagerEnabled, tConfig.Device.LogManagerEnabled));
       tPutBool(kNvsDeviceActLedPin, mConfig.putUChar(kNvsDeviceActLedPin, tConfig.Device.ActLedPin));
       tPutBool(kNvsDisplayRotate, mConfig.putUShort(kNvsDisplayRotate, tConfig.Display.Rotate));
       tPutBool(kNvsDisplayBrightness, mConfig.putUChar(kNvsDisplayBrightness, tConfig.Display.JpgBrightness));

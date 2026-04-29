@@ -1,7 +1,6 @@
 #include <App/Global.h>
 
 namespace App {
-  RTC_DATA_ATTR uint32_t gBootCount = 0;
   #if !PRODUCTION
     RTC_NOINIT_ATTR uint32_t gMaintenanceBootRequest = 0;
     constexpr uint32_t kMaintenanceBootMagic = 0x4D41494E;
@@ -43,8 +42,8 @@ class Application {
       #endif
       if (psramFound()) heap_caps_malloc_extmem_enable(1024);
       if (!mMutex) mMutex = xSemaphoreCreateRecursiveMutex();
-      gBootCount++;
       if(!CFG.Init()) return;
+      mBootCount = CFG.IncrementBootCount();
       ReloadConfig();
       UTL.Init();
       UTL.SetCPUFrequency(ECPUFrequency::F160MHz);
@@ -111,6 +110,7 @@ class Application {
     Application() = default;
     SemaphoreHandle_t mMutex = nullptr;
     SAppConfig mCfg {};
+    uint32_t mBootCount = 0;
 
     static void Lock() {
       if (Instance().mMutex) xSemaphoreTakeRecursive(Instance().mMutex, portMAX_DELAY);
@@ -159,10 +159,28 @@ class Application {
       return DSP.PrintJpg(0, 0, tImage);
     }
 
+    static const char *ResolveBootReason() {
+      switch (esp_reset_reason()) {
+        case ESP_RST_POWERON:   return "POWER_ON";
+        case ESP_RST_EXT:       return "EXT_PIN";
+        case ESP_RST_SW:        return "SOFTWARE";
+        case ESP_RST_PANIC:     return "PANIC";
+        case ESP_RST_INT_WDT:   return "INT_WDT";
+        case ESP_RST_TASK_WDT:  return "TASK_WDT";
+        case ESP_RST_WDT:       return "WDT";
+        case ESP_RST_DEEPSLEEP: return "TIMER_WAKEUP";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+      }
+    }
+
     void PhotoFrameMode() {
       ReloadConfig();
       UTL.PrintInfo("Device starts in Photo Frame Mode", EUtilsInfoType::Single);
       STG.Init(true);
+      LGM.Init();
+      LGM.Boot(ResolveBootReason(), "PHOTO_FRAME", mCfg.Device.Version.c_str(), mBootCount);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       const char *tImage = mCfg.Display.CurrentFile.isEmpty() ? STG.GetNextFile("")  : mCfg.Display.CurrentFile.c_str();
@@ -180,6 +198,7 @@ class Application {
       }
       UTL.PrintMemoryInfo();
       DSP.OffAll();
+      LGM.Halt("SLEEP");
       STG.End();
       #if PRODUCTION
         UTL.SleepAndWakeup();
@@ -199,6 +218,8 @@ class Application {
         UTL.PrintInfo(tText, EUtilsInfoType::Single);
       }
       STG.Init(true);
+      LGM.Init();
+      LGM.Boot(ResolveBootReason(), "MAINTENANCE", mCfg.Device.Version.c_str(), mBootCount);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       if (!sButtonTaskStarted) {
@@ -301,12 +322,8 @@ class Application {
           xLOG("Maintenance inactivity timeout reached");
           xLOG("Restarting to Photo Frame Mode");
           DSH.Stop();
-          {
-            Guard tLock;
-            DSP.OffAll();
-            STG.End();
-            CON.Stop();
-          }
+          { Guard tLock; LGM.Halt("INACTIVITY_TIMEOUT"); DSP.OffAll(); STG.End(); }
+          CON.Stop();
           vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
           esp_restart();
           __builtin_unreachable();

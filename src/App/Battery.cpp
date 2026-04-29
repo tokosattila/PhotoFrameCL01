@@ -194,6 +194,17 @@ namespace App {
     return (tValue > 100) ? 100 : static_cast<uint8_t>(tValue);
   }
 
+  bool Battery_::IsUsbPowerPresent() {
+    Guard tLock;
+    if (!mAvailable) return false;
+    int tStatus1 = ReadRegister(0x00);
+    int tStatus2 = ReadRegister(0x01);
+    if (tStatus1 < 0 || tStatus2 < 0) return false;
+    const bool tVbusGood = ((tStatus1 >> 5) & 0x01) != 0;
+    const bool tVbusInserted = ((tStatus2 >> 3) & 0x01) == 0;
+    return tVbusGood && tVbusInserted;
+  }
+
   bool Battery_::IsCharging() {
     Guard tLock;
     if (!mAvailable) return false;
@@ -226,12 +237,23 @@ namespace App {
     return tVoltageMv > 0 && tVoltageMv < kLowBatteryVoltageMv && tPercent <= kLowBatteryPercent;
   }
 
+  String Battery_::GetStatusText() {
+    Guard tLock;
+    if (!mAvailable || !IsBatteryConnected()) return "no battery";
+    char tBuffer[48] = "0% [0.00V]";
+    snprintf(tBuffer, sizeof(tBuffer), "%u%% [%.2fV]", static_cast<unsigned>(GetPercentage()), static_cast<float>(GetVoltage()) / 1000.0f);
+    String tStatusText = tBuffer;
+    if (IsCharging()) tStatusText += " USB charging";
+    else if (IsUsbPowerPresent()) tStatusText += " USB power";
+    return tStatusText;
+  }
+
   void Battery_::PrintInfo() {
     if (!IsBatteryConnected()) {
       xLOG("No battery attached");
       return;
     }
-    xLOG("Battery → %umV [%u%%] %s", GetVoltage(), GetPercentage(), IsCharging() ? "charging" : (IsDischarging() ? "discharging" : "standby"));
+    xLOG("Battery → %s", GetStatusText().c_str());
   }
 
 }

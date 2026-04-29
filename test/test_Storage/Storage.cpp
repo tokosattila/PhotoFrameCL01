@@ -42,6 +42,19 @@ struct StorageLabelLayout {
   std::string SecondaryLabelKey;
 };
 
+struct MockTextFile {
+  bool Exists = false;
+  std::string Content;
+};
+
+bool SimulateStorageWriteFile(MockTextFile &tFile, const char *tPath, const char *tContent, bool tAppend) {
+  if (!tPath || !tContent) return false;
+  if (tAppend && tFile.Exists) tFile.Content += tContent;
+  else tFile.Content = tContent;
+  tFile.Exists = true;
+  return true;
+}
+
 StorageSelection SelectActiveStorage(const MockStorageState &state) {
   StorageSelection result = {EFileSystemType::LittleFS, false, false};
   
@@ -335,6 +348,31 @@ void test_DashboardLayout_fallback_disabled_has_no_fallback_labels() {
 }
 
 // ============================================================================
+// WriteFile semantics tests
+// ============================================================================
+
+void test_WriteFile_overwrite_replaces_content() {
+  MockTextFile file;
+  TEST_ASSERT_TRUE(SimulateStorageWriteFile(file, "/logs/test.log", "first", false));
+  TEST_ASSERT_TRUE(SimulateStorageWriteFile(file, "/logs/test.log", "second", false));
+  TEST_ASSERT_TRUE(file.Exists);
+  TEST_ASSERT_EQUAL_STRING("second", file.Content.c_str());
+}
+
+void test_WriteFile_append_concatenates_content() {
+  MockTextFile file;
+  TEST_ASSERT_TRUE(SimulateStorageWriteFile(file, "/logs/test.log", "first", false));
+  TEST_ASSERT_TRUE(SimulateStorageWriteFile(file, "/logs/test.log", "+second", true));
+  TEST_ASSERT_TRUE(file.Exists);
+  TEST_ASSERT_EQUAL_STRING("first+second", file.Content.c_str());
+}
+
+void test_WriteFile_null_content_returns_false() {
+  MockTextFile file;
+  TEST_ASSERT_FALSE(SimulateStorageWriteFile(file, "/logs/test.log", nullptr, false));
+}
+
+// ============================================================================
 // Test Runner
 // ============================================================================
 
@@ -365,6 +403,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_DashboardLayout_default_sd_fallback_enabled);
   RUN_TEST(test_DashboardLayout_default_littlefs_fallback_enabled);
   RUN_TEST(test_DashboardLayout_fallback_disabled_has_no_fallback_labels);
+  RUN_TEST(test_WriteFile_overwrite_replaces_content);
+  RUN_TEST(test_WriteFile_append_concatenates_content);
+  RUN_TEST(test_WriteFile_null_content_returns_false);
   
   return UNITY_END();
 }

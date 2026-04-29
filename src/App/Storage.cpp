@@ -175,15 +175,31 @@ namespace App {
   }
 
   bool Storage_::WriteFile(const char *tPath, const char *tContent, bool tAppend) {
-    if (!mMounted) return false;
-    if (mActiveType == EFileSystemType::SDCard) return SDC.WriteFile(tPath, tContent, tAppend);
-    return LFS.WriteFile(tPath, tContent, tAppend);
+    if (!mMounted || !tPath || !tContent) return false;
+    File tFile = OpenFile(tPath, tAppend ? FILE_APPEND : FILE_WRITE, true);
+    if (!tFile) return false;
+    const size_t tLength = strlen(tContent);
+    const bool tSuccess = (tFile.write(reinterpret_cast<const uint8_t *>(tContent), tLength) == tLength);
+    tFile.close();
+    return tSuccess;
   }
 
   bool Storage_::DeleteFile(const char *tPath) {
     if (!mMounted) return false;
     if (mActiveType == EFileSystemType::SDCard) return SDC.DeleteFile(tPath);
     return LFS.DeleteFile(tPath);
+  }
+
+  bool Storage_::CreateDir(const char *tPath, bool tVerbose) {
+    if (!mMounted) return false;
+    if (mActiveType == EFileSystemType::SDCard) return SDC.CreateDir(tPath, tVerbose);
+    return LFS.CreateDir(tPath, tVerbose);
+  }
+
+  bool Storage_::DeleteDir(const char *tPath) {
+    if (!mMounted) return false;
+    if (mActiveType == EFileSystemType::SDCard) return SDC.DeleteDir(tPath);
+    return LFS.DeleteDir(tPath);
   }
 
   const char *Storage_::ListDir(const char *tPath) {

@@ -73,6 +73,10 @@ bool IsPublicConfigKey(const char *tKey) {
   return false;
 }
 
+uint32_t IncrementBootCountValue(uint32_t tCurrentValue) {
+  return tCurrentValue + 1U;
+}
+
 // ============================================================================
 // TrimValue Tests
 // ============================================================================
@@ -332,6 +336,18 @@ void test_PublicConfigKeys_image_updated_at_not_exposed() {
   TEST_ASSERT_TRUE(IsPublicConfigKey("image_file"));
 }
 
+void test_BootCount_increment_from_zero() {
+  const uint32_t tCurrentBootCount = 0;
+  const uint32_t tNextBootCount = IncrementBootCountValue(tCurrentBootCount);
+  TEST_ASSERT_EQUAL_UINT32(1, tNextBootCount);
+}
+
+void test_BootCount_increment_from_non_zero() {
+  const uint32_t tCurrentBootCount = 41;
+  const uint32_t tNextBootCount = IncrementBootCountValue(tCurrentBootCount);
+  TEST_ASSERT_EQUAL_UINT32(42, tNextBootCount);
+}
+
 // ============================================================================
 // Test Runner
 // ============================================================================
@@ -381,6 +397,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_ParseLine_null_input);
   RUN_TEST(test_ParseLine_no_equals_sign);
   RUN_TEST(test_PublicConfigKeys_image_updated_at_not_exposed);
+  RUN_TEST(test_BootCount_increment_from_zero);
+  RUN_TEST(test_BootCount_increment_from_non_zero);
   
   return UNITY_END();
 }
