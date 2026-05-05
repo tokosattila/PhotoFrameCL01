@@ -92,7 +92,7 @@ class Application {
       #endif  
       const uint8_t tSettingPin = static_cast<uint8_t>(mCfg.Device.SettingPin);
       #if PRODUCTION
-        if (UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
+        if (IsSettingButtonHeld(tSettingPin) || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
         else PhotoFrameMode();
       #else
         const bool tMaintenanceRequested = (gMaintenanceBootRequest == kMaintenanceBootMagic);
@@ -118,6 +118,18 @@ class Application {
 
     static void Unlock() {
       if (Instance().mMutex) xSemaphoreGiveRecursive(Instance().mMutex);
+    }
+
+    static bool IsSettingButtonHeld(uint8_t tSettingPin) {
+      gpio_config_t tConfig = {};
+      tConfig.pin_bit_mask = (1ULL << tSettingPin);
+      tConfig.mode = GPIO_MODE_INPUT;
+      tConfig.pull_up_en = GPIO_PULLUP_DISABLE;
+      tConfig.pull_down_en = GPIO_PULLDOWN_ENABLE;
+      tConfig.intr_type = GPIO_INTR_DISABLE;
+      gpio_config(&tConfig);
+      vTaskDelay(DELAY_SHORT_MS / portTICK_PERIOD_MS);
+      return gpio_get_level(static_cast<gpio_num_t>(tSettingPin)) == 1;
     }
 
     void ReloadConfig() {

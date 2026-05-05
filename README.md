@@ -174,6 +174,7 @@ Dashboard authentication is cookie-token based.
 - Protected endpoints require valid token.
 - Expired/invalid sessions are rejected and redirected to login.
 - Activity timestamps are updated on authenticated calls.
+- If no dashboard password is configured, maintenance access is treated as passwordless and protected pages are available without a session token.
 
 The activity timestamp is reused by maintenance inactivity logic to decide automatic restart.
 
@@ -268,6 +269,8 @@ OTA flow:
 
 This provides rollback-friendly dual-slot behavior for remote updates.
 
+The dashboard also exposes the currently running boot partition in the Stats flash section. The User settings page can select the boot target for the next restart (`OTA 0` or `OTA 1`). A target slot is accepted only when it contains a valid firmware image; empty or invalid OTA slots are rejected before the boot target is changed.
+
 ## 14. Dashboard (Detailed)
 
 The dashboard is a first-class subsystem with embedded assets and API-driven interactions.
@@ -276,19 +279,19 @@ The dashboard is a first-class subsystem with embedded assets and API-driven int
 
 Implemented pages include:
 
-- Login
-- Index/Gallery
-- Display
-- Firmware
-- Network
-- NTP
-- Date & Time
-- Wake-up
-- mDNS
-- Language
-- Settings
-- User (includes sound, LogManager enable, and other user preferences)
-- Stats
+* Login
+* Index/Gallery
+* Settings
+  - Display
+  - Firmware
+  - Network
+  - NTP
+  - Date & Time
+  - Wake-up
+  - mDNS
+  - Language
+  - User (includes sound, LogManager enable, boot target selection, and other user preferences)
+- Stats (includes active boot partition in the Flash section)
 - Error
 
 These are served from compiled assets (`Dashboard/Pages`, `Dashboard/Assets`, `Dashboard/Languages`).
@@ -303,6 +306,7 @@ API surface is organized around:
 - Configuration saves (`/api/*/save` endpoints)
 - Time sync (`/api/ntp/sync`, `/api/rtc/*`)
 - OTA (`/api/ota/*`)
+- Boot target selection (`/api/user/boot-target/save`)
 - System actions (`/api/reboot`, `/api/restart`, `/api/factory/reset`)
 
 ### 14.3 Runtime Behaviors
@@ -357,6 +361,7 @@ Status and configuration:
 - `POST /api/language/save`
 - `POST /api/user/save`
 - `POST /api/user/restore`
+- `POST /api/user/boot-target/save`
 - `POST /api/wakeup/save`
 - `GET /api/stats`
 

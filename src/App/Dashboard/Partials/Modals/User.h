@@ -6,7 +6,7 @@
 namespace App {
   namespace DashboardUserModals {
     const char Extra[] PROGMEM = R"PAGE(
-<div id=user-restore-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=restore_settings></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_restore_settings></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-primary" data-modal-close data-user-restore-confirm data-t=restore></a></div></div></div>
+<div id=user-restore-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=restore_settings></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_restore_settings></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-primary" data-modal-close data-user-restore-confirm data-t=restore></a></div></div></div><div id=user-boot-target-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=boot_partition></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_boot_target_change></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-primary" data-modal-close data-user-boot-target-confirm data-t=save></a></div></div></div>
 )PAGE";
   }
 }

@@ -58,9 +58,9 @@ namespace App {
       static constexpr uint32_t kStatusCacheRefreshIntervalMs = 1000;
       static constexpr uint32_t kStatsCacheRefreshIntervalMs = 1000;
       static constexpr uint32_t kOtaProgressBroadcastIntervalMs = 250;
-      static constexpr uint32_t kOtaFinalizeTimeoutMs = 20 * 1000;
-      static constexpr uint32_t kStorageStatsCacheTtlMs = 5 * 1000;
-      static constexpr uint32_t kIndexDataCacheRefreshIntervalMs = 3 * 1000;
+      static constexpr uint32_t kOtaFinalizeTimeoutMs = 20000;
+      static constexpr uint32_t kStorageStatsCacheTtlMs = 5000;
+      static constexpr uint32_t kIndexDataCacheRefreshIntervalMs = 3000;
       static constexpr uint32_t kRestartActionDelayMs = 3 * 1000;
       static constexpr uint32_t kPageHighPerformanceHoldMs = 6 * 1000;
       static constexpr uint32_t kMediaHighPerformanceHoldMs = 10 * 1000;
@@ -188,6 +188,7 @@ namespace App {
       void HandleLanguageSave(AsyncWebServerRequest *tRequest);
       void HandleUserSave(AsyncWebServerRequest *tRequest);
       void HandleUserRestore(AsyncWebServerRequest *tRequest);
+      void HandleUserBootTargetSave(AsyncWebServerRequest *tRequest);
       void HandleWakeUpSave(AsyncWebServerRequest *tRequest);
       void ParseConfigSave(AsyncWebServerRequest *tRequest, SAppConfig &tConfig);
       void HandleImagesList(AsyncWebServerRequest *tRequest);

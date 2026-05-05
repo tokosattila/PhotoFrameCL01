@@ -6,7 +6,8 @@ enum class EBootRoute : uint8_t {
   Maintenance
 };
 
-EBootRoute ResolveBootRouteProduction(bool tWokenBySettingPin) {
+EBootRoute ResolveBootRouteProduction(bool tSettingButtonHeld, bool tWokenBySettingPin) {
+  if (tSettingButtonHeld) return EBootRoute::Maintenance;
   if (tWokenBySettingPin) return EBootRoute::Maintenance;
   return EBootRoute::PhotoFrame;
 }
@@ -18,11 +19,19 @@ EBootRoute ResolveBootRouteDev(bool tMaintenanceRequested, bool tWokenBySettingP
 }
 
 void test_ResolveBootRouteProduction_setting_pin_enters_maintenance() {
-  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::Maintenance), static_cast<uint8_t>(ResolveBootRouteProduction(true)));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::Maintenance), static_cast<uint8_t>(ResolveBootRouteProduction(false, true)));
+}
+
+void test_ResolveBootRouteProduction_held_setting_button_enters_maintenance() {
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::Maintenance), static_cast<uint8_t>(ResolveBootRouteProduction(true, false)));
+}
+
+void test_ResolveBootRouteProduction_held_and_woken_setting_button_enters_maintenance() {
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::Maintenance), static_cast<uint8_t>(ResolveBootRouteProduction(true, true)));
 }
 
 void test_ResolveBootRouteProduction_default_photoframe() {
-  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::PhotoFrame), static_cast<uint8_t>(ResolveBootRouteProduction(false)));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EBootRoute::PhotoFrame), static_cast<uint8_t>(ResolveBootRouteProduction(false, false)));
 }
 
 void test_ResolveBootRouteDev_marker_enters_maintenance() {
@@ -47,6 +56,8 @@ void tearDown(void) {}
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_ResolveBootRouteProduction_setting_pin_enters_maintenance);
+  RUN_TEST(test_ResolveBootRouteProduction_held_setting_button_enters_maintenance);
+  RUN_TEST(test_ResolveBootRouteProduction_held_and_woken_setting_button_enters_maintenance);
   RUN_TEST(test_ResolveBootRouteProduction_default_photoframe);
   RUN_TEST(test_ResolveBootRouteDev_marker_enters_maintenance);
   RUN_TEST(test_ResolveBootRouteDev_setting_pin_enters_maintenance);

@@ -372,9 +372,41 @@ namespace App {
     return String(tBuffer);
   }
 
+  static int32_t ResolveCurrentUtcOffsetMinutes(time_t tEpochUtc, int32_t tFallbackMinutes) {
+    if (static_cast<unsigned long>(tEpochUtc) < 1735689600UL) return tFallbackMinutes;
+    struct tm tLocalTime = {};
+    struct tm tUtcTime = {};
+    localtime_r(&tEpochUtc, &tLocalTime);
+    gmtime_r(&tEpochUtc, &tUtcTime);
+    tLocalTime.tm_isdst = -1;
+    tUtcTime.tm_isdst = 0;
+    const time_t tLocalEpoch = mktime(&tLocalTime);
+    const time_t tUtcEpochAsLocal = mktime(&tUtcTime);
+    if (tLocalEpoch < 0 || tUtcEpochAsLocal < 0) return tFallbackMinutes;
+    const int32_t tResolvedMinutes = static_cast<int32_t>((tLocalEpoch - tUtcEpochAsLocal) / 60);
+    if (tResolvedMinutes < -720 || tResolvedMinutes > 840) return tFallbackMinutes;
+    if (tResolvedMinutes == 0 && tFallbackMinutes != 0) return tFallbackMinutes;
+    return tResolvedMinutes;
+  }
+
+  static unsigned long NormalizeAutoSyncIntervalSec(unsigned long tIntervalSec, bool tEnabled) {
+    if (!tEnabled) return 0;
+    switch (tIntervalSec) {
+      case SECONDS_PER_DAY:
+      case 7UL * SECONDS_PER_DAY:
+      case 30UL * SECONDS_PER_DAY:
+      case 90UL * SECONDS_PER_DAY:
+      case 180UL * SECONDS_PER_DAY:
+        return tIntervalSec;
+      default:
+        return 7UL * SECONDS_PER_DAY;
+    }
+  }
+
   int32_t Dashboard_::ResolveUtcOffsetMinutes() {
     const SNTPConfig tNtpConfig = CFG.Get<SNTPConfig>();
-    return static_cast<int32_t>((tNtpConfig.GMTOffset + tNtpConfig.DaylightOffset) / 60);
+    const int32_t tFallbackMinutes = static_cast<int32_t>((tNtpConfig.GMTOffset + tNtpConfig.DaylightOffset) / 60);
+    return ResolveCurrentUtcOffsetMinutes(time(nullptr), tFallbackMinutes);
   }
 
   String Dashboard_::ResolveTimeZoneLabel() {
@@ -660,6 +692,7 @@ namespace App {
     char tFlashSizeText[24] = "0 B";
     char tProgramCodeText[24] = "0 B";
     char tProgramCodeTotalText[24] = "0 B";
+    char tBootPartitionText[24] = "";
     char tLittleFsUsedText[24] = "0 B";
     char tLittleFsTotalText[24] = "0 B";
     char tSdCardUsedText[24] = "0 B";
@@ -668,6 +701,7 @@ namespace App {
     const esp_partition_t *tRunningPartition = esp_ota_get_running_partition();
     uint32_t tSketchTotalBytes = tSketchUsedBytes + ESP.getFreeSketchSpace();
     if (tRunningPartition && tRunningPartition->size > 0) tSketchTotalBytes = static_cast<uint32_t>(tRunningPartition->size);
+    if (tRunningPartition && tRunningPartition->label) snprintf(tBootPartitionText, sizeof(tBootPartitionText), "%s", tRunningPartition->label);
     UTL.ByteToReadableSize(ESP.getFlashChipSize(), tFlashSizeText, sizeof(tFlashSizeText));
     UTL.ByteToReadableSize(tSketchUsedBytes, tProgramCodeText, sizeof(tProgramCodeText));
     UTL.ByteToReadableSize(tSketchTotalBytes, tProgramCodeTotalText, sizeof(tProgramCodeTotalText));
@@ -747,7 +781,13 @@ namespace App {
     tJson += EscapeJsonText(String(tFlashSizeText));
     tJson += "\"},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"program_code\",\"Value\":\"";
     tJson += EscapeJsonText(String(tProgramCodeText) + String(" / ") + String(tProgramCodeTotalText));
-    tJson += "\"}]},";
+    tJson += "\"},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"boot_partition\",";
+    if (tBootPartitionText[0]) {
+      tJson += "\"Value\":\"";
+      tJson += EscapeJsonText(String(tBootPartitionText));
+      tJson += "\"";
+    } else tJson += "\"ValueKey\":\"not_available\"";
+    tJson += "}]},";
     tJson += "{\"LabelKey\":\"storage\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"";
     tJson += tPrimaryStorageLabelKey;
     tJson += "\",";
@@ -858,14 +898,12 @@ namespace App {
     } else if (tPageKey == "ntp") {
       tJson += "\"Ntp\":{\"Server\":\"";
       tJson += EscapeJsonText(tConfig.Ntp.Server);
-      tJson += "\",\"GmtOffsetSec\":";
-      tJson += String(static_cast<long>(tConfig.Ntp.GMTOffset));
-      tJson += ",\"DaylightOffsetSec\":";
-      tJson += String(static_cast<long>(tConfig.Ntp.DaylightOffset));
+      tJson += "\",\"AutoSyncEnabled\":";
+      tJson += tConfig.Ntp.LowPowerSyncEnable ? "true" : "false";
       tJson += ",\"Port\":";
       tJson += String(static_cast<unsigned>(tConfig.Ntp.NtpPort));
-      tJson += ",\"UpdateInterval\":";
-      tJson += String(tConfig.Ntp.LowPowerSyncIntervalSec * 1000UL);
+      tJson += ",\"UpdateIntervalSec\":";
+      tJson += String(tConfig.Ntp.LowPowerSyncEnable ? tConfig.Ntp.LowPowerSyncIntervalSec : 0UL);
       tJson += "}";
     } else if (tPageKey == "datetime") {
       tJson += "\"DateTime\":{\"TimeStamp\":";
@@ -914,6 +952,10 @@ namespace App {
         tJson += tConfig.Storage.FallbackEnabled ? "true" : "false";
         tJson += ",\"Default\":\"";
         tJson += EscapeJsonText(tStorageDefaultKey);
+        tJson += "\"},\"Boot\":{\"Target\":\"";
+        const esp_partition_t *tBootPartition = esp_ota_get_boot_partition();
+        const char *tBootTarget = (tBootPartition && tBootPartition->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "ota_1" : "ota_0";
+        tJson += tBootTarget;
         tJson += "\"}";
       } else tJson += "]}";
     }
@@ -1128,6 +1170,7 @@ namespace App {
 
   bool Dashboard_::AuthorizeRequest(AsyncWebServerRequest *tRequest) {
     if (!tRequest) return false;
+    if (!mCachedPassHash[0]) return true;
     if (tRequest->hasHeader("Authorization")) {
       String tAuthorizationHeader = tRequest->header("Authorization");
       if (tAuthorizationHeader.startsWith("Bearer ")) {
@@ -1404,6 +1447,9 @@ namespace App {
     mServer.on("/api/user/restore", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       HandleUserRestore(tRequest);
     });
+    mServer.on("/api/user/boot-target/save", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      HandleUserBootTargetSave(tRequest);
+    });
     mServer.on("/api/wakeup/save", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       HandleWakeUpSave(tRequest);
     });
@@ -1574,10 +1620,22 @@ namespace App {
     if (!tRequest) return;
     const String tRedirectUrl = ResolveSafeRedirectTarget(tRequest, String("/index.html"));
     if (!mCachedPassHash[0]) {
-      String tResponseJson = "{\"ok\":true,\"error\":false,\"RedirectUrl\":\"";
+      const char *tToken = CreateSession();
+      if (!tToken) {
+        DashboardUtils_::ErrorResponse(tRequest, 500, "internal_error");
+        return;
+      }
+      String tResponseJson = "{\"ok\":true,\"error\":false,\"token\":\"";
+      tResponseJson += tToken;
+      tResponseJson += "\",\"RedirectUrl\":\"";
       tResponseJson += EscapeJsonText(tRedirectUrl);
       tResponseJson += "\"}";
-      DashboardUtils_::JsonResponse(tRequest, 200, tResponseJson.c_str());
+      AsyncWebServerResponse *tResponse = tRequest->beginResponse(200, "application/json", tResponseJson);
+      tResponse->addHeader("Cache-Control", "no-store");
+      char tSetCookieHeader[192] = "";
+      snprintf(tSetCookieHeader, sizeof(tSetCookieHeader), "%s=%s;HttpOnly;SameSite=Lax;Path=/;Max-Age=%u", kSessionCookieName, tToken, static_cast<unsigned>(kSessionTtlSec));
+      tResponse->addHeader("Set-Cookie", tSetCookieHeader);
+      tRequest->send(tResponse);
       return;
     }
     String tUserName;
@@ -1883,14 +1941,14 @@ namespace App {
     SAppConfig tConfig = CFG.Get<SAppConfig>();
     String tValue;
     if (TryGetRequestValue(tRequest, "Ntp[Server]", tValue)) tConfig.Ntp.Server = tValue;
-    long tGmtOffsetSec = tConfig.Ntp.GMTOffset;
-    long tDstOffsetSec = tConfig.Ntp.DaylightOffset;
-    if (TryGetRequestValue(tRequest, "Ntp[GmtOffsetSec]", tValue)) tGmtOffsetSec = strtol(tValue.c_str(), nullptr, 10);
-    if (TryGetRequestValue(tRequest, "Ntp[DaylightOffsetSec]", tValue)) tDstOffsetSec = strtol(tValue.c_str(), nullptr, 10);
-    tConfig.Ntp.GMTOffset = tGmtOffsetSec;
-    tConfig.Ntp.DaylightOffset = tDstOffsetSec;
-    const int32_t tUtcOffsetMinutes = static_cast<int32_t>((tGmtOffsetSec + tDstOffsetSec) / 60);
-    tConfig.Ntp.TimeZoneLabel = (tUtcOffsetMinutes == 0) ? String("ETC/UTC") : FormatUtcOffsetLabel(tUtcOffsetMinutes);
+    bool tAutoSyncEnabled = tConfig.Ntp.LowPowerSyncEnable;
+    unsigned long tAutoSyncIntervalSec = tConfig.Ntp.LowPowerSyncIntervalSec;
+    if (TryGetRequestValue(tRequest, "Ntp[AutoSyncEnabled]", tValue)) tAutoSyncEnabled = ParseBoolValue(tValue);
+    if (TryGetRequestValue(tRequest, "Ntp[AutoSyncIntervalSec]", tValue)) tAutoSyncIntervalSec = static_cast<unsigned long>(strtoul(tValue.c_str(), nullptr, 10));
+    else if (TryGetRequestValue(tRequest, "Ntp[UpdateIntervalSec]", tValue)) tAutoSyncIntervalSec = static_cast<unsigned long>(strtoul(tValue.c_str(), nullptr, 10));
+    else if (TryGetRequestValue(tRequest, "Ntp[UpdateInterval]", tValue)) tAutoSyncIntervalSec = static_cast<unsigned long>(strtoul(tValue.c_str(), nullptr, 10) / 1000UL);
+    tConfig.Ntp.LowPowerSyncIntervalSec = NormalizeAutoSyncIntervalSec(tAutoSyncIntervalSec, tAutoSyncEnabled);
+    tConfig.Ntp.LowPowerSyncEnable = tConfig.Ntp.LowPowerSyncIntervalSec != 0;
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, tSyncNow ? "ntp_sync_error" : "ntp_save_error");
       return;
@@ -1929,7 +1987,7 @@ namespace App {
       return;
     }
     SAppConfig tConfig = CFG.Get<SAppConfig>();
-    int32_t tUtcOffsetMinutes = static_cast<int32_t>((tConfig.Ntp.GMTOffset + tConfig.Ntp.DaylightOffset) / 60);
+    int32_t tUtcOffsetMinutes = ResolveUtcOffsetMinutes();
     if (TryGetRequestValue(tRequest, "DateTime[UtcOffsetMinutes]", tValue)) {
       const long tRawOffsetMinutes = strtol(tValue.c_str(), nullptr, 10);
       if (tRawOffsetMinutes < -720 || tRawOffsetMinutes > 840) {
@@ -2107,6 +2165,37 @@ namespace App {
     DashboardUtils_::OkResponse(tRequest, "restore_restart_pending");
   }
 
+  void Dashboard_::HandleUserBootTargetSave(AsyncWebServerRequest *tRequest) {
+    Guard tLock;
+    if (!AuthorizeRequest(tRequest)) {
+      DashboardUtils_::UnauthorizedResponse(tRequest);
+      return;
+    }
+    String tValue;
+    if (!TryGetRequestValue(tRequest, "user[boot][target]", tValue)) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "boot_target_save_error");
+      return;
+    }
+    tValue.trim();
+    tValue.toLowerCase();
+    const esp_partition_subtype_t tSubtype = (tValue == "ota_1") ? ESP_PARTITION_SUBTYPE_APP_OTA_1 : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    const esp_partition_t *tTargetPartition = esp_partition_find_first(ESP_PARTITION_TYPE_APP, tSubtype, nullptr);
+    if (!tTargetPartition) {
+      DashboardUtils_::ErrorResponse(tRequest, 500, "boot_target_save_error");
+      return;
+    }
+    esp_app_desc_t tAppDescription = {};
+    if (esp_ota_get_partition_description(tTargetPartition, &tAppDescription) != ESP_OK) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "boot_target_invalid_partition");
+      return;
+    }
+    if (esp_ota_set_boot_partition(tTargetPartition) != ESP_OK) {
+      DashboardUtils_::ErrorResponse(tRequest, 500, "boot_target_save_error");
+      return;
+    }
+    DashboardUtils_::OkResponse(tRequest, "boot_target_save_success");
+  }
+
   void Dashboard_::HandleWakeUpSave(AsyncWebServerRequest *tRequest) {
     Guard tLock;
     if (!AuthorizeRequest(tRequest)) {
@@ -2162,11 +2251,19 @@ namespace App {
     if (tHasParameter("ntp.port")) tConfig.Ntp.NtpPort = static_cast<uint16_t>(tGetParameter("ntp.port").toInt());
     if (tHasParameter("ntp.gmt_offset")) tConfig.Ntp.GMTOffset = static_cast<long>(tGetParameter("ntp.gmt_offset").toInt());
     if (tHasParameter("ntp.daylight_offset")) tConfig.Ntp.DaylightOffset = static_cast<long>(tGetParameter("ntp.daylight_offset").toInt());
+    if (tHasParameter("ntp.time_zone_label")) tConfig.Ntp.TimeZoneLabel = NormalizeTimeZoneLabel(tGetParameter("ntp.time_zone_label"));
+    if (tHasParameter("ntp.utc_offset_minutes")) {
+      const int32_t tUtcOffsetMinutes = tGetParameter("ntp.utc_offset_minutes").toInt();
+      tConfig.Ntp.GMTOffset = static_cast<long>(tUtcOffsetMinutes) * 60L;
+      tConfig.Ntp.DaylightOffset = 0;
+    }
     if (tHasParameter("ntp.update_interval")) {
       unsigned long tIntervalMs = static_cast<unsigned long>(tGetParameter("ntp.update_interval").toInt());
       unsigned long tIntervalSec = tIntervalMs / 1000UL;
-      tConfig.Ntp.LowPowerSyncIntervalSec = (tIntervalSec >= SECONDS_PER_DAY) ? tIntervalSec : SECONDS_PER_DAY;
+      tConfig.Ntp.LowPowerSyncIntervalSec = NormalizeAutoSyncIntervalSec(tIntervalSec, true);
     }
+    if (tHasParameter("ntp.auto_sync_enabled")) tConfig.Ntp.LowPowerSyncEnable = tGetParameter("ntp.auto_sync_enabled") == "1";
+    tConfig.Ntp.LowPowerSyncIntervalSec = NormalizeAutoSyncIntervalSec(tConfig.Ntp.LowPowerSyncIntervalSec, tConfig.Ntp.LowPowerSyncEnable);
     if (tHasParameter("timer.wake_up")) tConfig.Timer.WakeUp = static_cast<ETimerWakeUp>(tGetParameter("timer.wake_up").toInt());
     if (tHasParameter("timer.wake_hour")) tConfig.Timer.WakeUpHour = static_cast<uint8_t>(tGetParameter("timer.wake_hour").toInt());
     if (tHasParameter("dashboard.user")) tConfig.Dashboard.User = tGetParameter("dashboard.user");
@@ -2840,7 +2937,7 @@ namespace App {
     tAppend("\"connection\":{\"ap_enable\":%s,\"ap_ssid\":\"%s\",\"ap_ip\":\"%s\",\"ap_gateway\":\"%s\",\"ap_subnet\":\"%s\",", tConfig.Connection.ApModeEnable ? "true" : "false", tConfig.Connection.ApSsid.c_str(), tConfig.Connection.ApIp.c_str(), tConfig.Connection.ApGateway.c_str(), tConfig.Connection.ApSubnet.c_str());
     tAppend("\"sta_ssid\":\"%s\",\"sta_ip_enable\":%s,\"sta_ip\":\"%s\",\"sta_gateway\":\"%s\",\"sta_subnet\":\"%s\",", tConfig.Connection.StaSsid.c_str(), tConfig.Connection.StaIpEnable ? "true" : "false", tConfig.Connection.StaIp.c_str(), tConfig.Connection.StaGateway.c_str(), tConfig.Connection.StaSubnet.c_str());
     tAppend("\"sta_dns1\":\"%s\",\"sta_dns2\":\"%s\",\"mdns_enable\":%s,\"mdns_name\":\"%s\"},", tConfig.Connection.StaPrimaryDns.c_str(), tConfig.Connection.StaSecondaryDns.c_str(), tConfig.Connection.MdnsEnable ? "true" : "false", tConfig.Connection.MdnsName.c_str());
-    tAppend("\"ntp\":{\"server\":\"%s\",\"port\":%u,\"gmt_offset\":%ld,\"daylight_offset\":%ld,\"update_interval\":%lu},", tConfig.Ntp.Server.c_str(), (unsigned)tConfig.Ntp.NtpPort, static_cast<long>(tConfig.Ntp.GMTOffset), static_cast<long>(tConfig.Ntp.DaylightOffset), tConfig.Ntp.LowPowerSyncIntervalSec * 1000UL);
+    tAppend("\"ntp\":{\"server\":\"%s\",\"port\":%u,\"gmt_offset\":%ld,\"daylight_offset\":%ld,\"time_zone_label\":\"%s\",\"utc_offset_minutes\":%ld,\"auto_sync_enabled\":%s,\"update_interval\":%lu},", tConfig.Ntp.Server.c_str(), (unsigned)tConfig.Ntp.NtpPort, static_cast<long>(tConfig.Ntp.GMTOffset), static_cast<long>(tConfig.Ntp.DaylightOffset), tConfig.Ntp.TimeZoneLabel.c_str(), static_cast<long>(ResolveCurrentUtcOffsetMinutes(time(nullptr), static_cast<int32_t>((tConfig.Ntp.GMTOffset + tConfig.Ntp.DaylightOffset) / 60))), tConfig.Ntp.LowPowerSyncEnable ? "true" : "false", (tConfig.Ntp.LowPowerSyncEnable ? tConfig.Ntp.LowPowerSyncIntervalSec : 0UL) * 1000UL);
     tAppend("\"timer\":{\"wake_up\":%u,\"wake_hour\":%u},", (unsigned)static_cast<uint8_t>(tConfig.Timer.WakeUp), (unsigned)tConfig.Timer.WakeUpHour);
     String tDashboardLanguage = DashboardUtils_::NormalizeLanguageCode(tConfig.Dashboard.Language);
     if (!tDashboardLanguage.length()) tDashboardLanguage = "en";
