@@ -225,7 +225,15 @@ namespace App {
       tCfg.LowPowerSyncIntervalSec = mConfig.getUInt(kNvsTimeLowPowerSyncIntervalSec, tDefaultConfig.Ntp.LowPowerSyncIntervalSec);
       tCfg.LastSuccessfulSyncEpochUtc = mConfig.getUInt(kNvsTimeLastSuccessfulSyncEpochUtc, tDefaultConfig.Ntp.LastSuccessfulSyncEpochUtc);
     });
-    if (tCfg.LowPowerSyncIntervalSec < SECONDS_PER_DAY) tCfg.LowPowerSyncIntervalSec = tDefaultConfig.Ntp.LowPowerSyncIntervalSec;
+    if (tCfg.LowPowerSyncIntervalSec != 0 &&
+        tCfg.LowPowerSyncIntervalSec != SECONDS_PER_DAY &&
+        tCfg.LowPowerSyncIntervalSec != 7UL * SECONDS_PER_DAY &&
+        tCfg.LowPowerSyncIntervalSec != 30UL * SECONDS_PER_DAY &&
+        tCfg.LowPowerSyncIntervalSec != 90UL * SECONDS_PER_DAY &&
+        tCfg.LowPowerSyncIntervalSec != 180UL * SECONDS_PER_DAY) {
+      tCfg.LowPowerSyncIntervalSec = tDefaultConfig.Ntp.LowPowerSyncIntervalSec;
+    }
+    if (tCfg.LowPowerSyncIntervalSec == 0) tCfg.LowPowerSyncEnable = false;
     return tCfg;
   }
 

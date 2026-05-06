@@ -333,7 +333,7 @@ namespace App {
   void Connection_::BootstrapVault() {
     Guard tLock;
     NTP.Init();
-    NTP.SyncSystemTime();
+    NTP.SyncSystemTimeIfNeeded();
     NTP.PrintDateTimeInfo();
     NTP.End();
   }

@@ -7,7 +7,78 @@
 namespace App {
   namespace DashboardPageNtp {
     const char Main[] PROGMEM = R"PAGE(
-<main class=dashboard-main><div class=dashboard-section><div class="dashboard-content dashboard-content-narrow"><div class=breadcrumbs><a href=/index.html class=breadcrumbs-item><span data-t=home></span></a><a href=/settings.html class=breadcrumbs-item><span data-t=settings></span></a><span class=breadcrumbs-item><span data-t=time_synchronization></span></span></div></div></div><div class=dashboard-section><div class="dashboard-content dashboard-content-narrow"><div class="flex flex-column flex-gap-medium"><div class="group flex-item-grow mb-3"><a href=/settings.html class="group-item button button-icon"><i class="icon icon-grid"></i></a><div class="flex-item-grow flex dropdown"><div class="group-item flex-item-grow select" data-t=time_synchronization></div><div class=dropdown-items><a href=/settings/display.html class=dropdown-link data-t=display_eink></a><a href=/settings/network.html class=dropdown-link data-t=network_ap_sta></a><a href=/settings/mdns.html class=dropdown-link data-t=mdns_local_name></a><a href=/settings/ntp.html class="dropdown-link active" data-t=ntp_sync></a><a href=/settings/datetime.html class=dropdown-link data-t=rtc_datetime></a><a href=/settings/wakeup.html class=dropdown-link data-t=rtc_wakeup></a><a href=/settings/language.html class=dropdown-link data-t=language></a><a href=/settings/user.html class=dropdown-link data-t=user></a><a href=/settings/firmware.html class=dropdown-link data-t=firmware></a></div></div></div><div class="mb-2 mt-0 card-alert" data-dismiss-session=ntp-info-hint><div class=card-alert-icon><i class="icon icon-lightbulb"></i></div><small class=card-alert-text data-t=ntp_page_info></small><button class=card-alert-close type=button data-card-close></button></div><form data-ntp-form data-ntp-save-success-message data-ntp-save-error-message data-ntp-sync-success-message data-ntp-sync-error-message data-t-data-ntp-save-success-message=ntp_save_success data-t-data-ntp-save-error-message=ntp_save_error data-t-data-ntp-sync-success-message=ntp_sync_success data-t-data-ntp-sync-error-message=ntp_sync_error ><template data-form-alert-template></template><div class="card-info mt-0 mb-6" data-ntp-ap-warning><div class=card-info-icon><i class="icon icon-exclamation-triangle"></i></div><div class=card-info-text data-t=ntp_unavailable_ap></div></div><div class=card><div class=card-body><div class="field mt-1" data-error data-t-data-error=invalid_ntp_server><div><label class=field-label for=field-ntp-server><span data-t=ntp_server></span></label></div><input class="input validate" id=field-ntp-server name=ntpServer value="__V_NTP_SRV__" type=text placeholder=ntp.example.com spellcheck=false pattern="^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?))*$" required></div><div class="field mt-3"><div><label class=field-label for=gmt-offset-sec><span data-t=time_zone></span></label></div><div class=select><span data-t=utc_timezone></span><select id=gmt-offset-sec name=gmtOffset_sec><option value=-43200 __S_NTP_GMT_N43200__>ETC/GMT+12 (UTC-12)</option><option value=-39600 __S_NTP_GMT_N39600__>Pacific/Pago_Pago (UTC-11)</option><option value=-36000 __S_NTP_GMT_N36000__>Pacific/Honolulu (UTC-10)</option><option value=-34200 __S_NTP_GMT_N34200__>Pacific/Marquesas (UTC-9:30)</option><option value=-32400 __S_NTP_GMT_N32400__>America/Anchorage (UTC-9)</option><option value=-28800 __S_NTP_GMT_N28800__>America/Los_Angeles (UTC-8)</option><option value=-25200 __S_NTP_GMT_N25200__>America/Denver (UTC-7)</option><option value=-21600 __S_NTP_GMT_N21600__>America/Chicago (UTC-6)</option><option value=-18000 __S_NTP_GMT_N18000__>America/New_York (UTC-5)</option><option value=-14400 __S_NTP_GMT_N14400__>America/Halifax (UTC-4)</option><option value=-12600 __S_NTP_GMT_N12600__>America/St_Johns (UTC-3:30)</option><option value=-10800 __S_NTP_GMT_N10800__>America/Sao_Paulo (UTC-3)</option><option value=-7200 __S_NTP_GMT_N7200__>Atlantic/South_Georgia (UTC-2)</option><option value=-3600 __S_NTP_GMT_N3600__>Atlantic/Azores (UTC-1)</option><option value=0 __S_NTP_GMT_0__>UTC (ETC/UTC)</option><option value=3600 __S_NTP_GMT_3600__>Europe/Berlin (UTC+1)</option><option value=7200 __S_NTP_GMT_7200__>Europe/Bucharest (UTC+2)</option><option value=10800 __S_NTP_GMT_10800__>Europe/Moscow (UTC+3)</option><option value=12600 __S_NTP_GMT_12600__>Asia/Tehran (UTC+3:30)</option><option value=14400 __S_NTP_GMT_14400__>Asia/Dubai (UTC+4)</option><option value=16200 __S_NTP_GMT_16200__>Asia/Kabul (UTC+4:30)</option><option value=18000 __S_NTP_GMT_18000__>Asia/Karachi (UTC+5)</option><option value=19800 __S_NTP_GMT_19800__>Asia/Kolkata (UTC+5:30)</option><option value=20700 __S_NTP_GMT_20700__>Asia/Kathmandu (UTC+5:45)</option><option value=21600 __S_NTP_GMT_21600__>Asia/Dhaka (UTC+6)</option><option value=23400 __S_NTP_GMT_23400__>Asia/Yangon (UTC+6:30)</option><option value=25200 __S_NTP_GMT_25200__>Asia/Bangkok (UTC+7)</option><option value=28800 __S_NTP_GMT_28800__>Asia/Shanghai (UTC+8)</option><option value=31500 __S_NTP_GMT_31500__>Australia/Eucla (UTC+8:45)</option><option value=32400 __S_NTP_GMT_32400__>Asia/Tokyo (UTC+9)</option><option value=34200 __S_NTP_GMT_34200__>Australia/Darwin (UTC+9:30)</option><option value=36000 __S_NTP_GMT_36000__>Australia/Sydney (UTC+10)</option><option value=37800 __S_NTP_GMT_37800__>Australia/Lord_Howe (UTC+10:30)</option><option value=39600 __S_NTP_GMT_39600__>Pacific/Noumea (UTC+11)</option><option value=43200 __S_NTP_GMT_43200__>Pacific/Auckland (UTC+12)</option><option value=45900 __S_NTP_GMT_45900__>Pacific/Chatham (UTC+12:45)</option><option value=46800 __S_NTP_GMT_46800__>Pacific/Apia (UTC+13)</option><option value=50400 __S_NTP_GMT_50400__>Pacific/Kiritimati (UTC+14)</option></select></div></div><div class="field mt-3"><div><label class=field-label for=daylight-offset-sec><span data-t=daylight_saving></span></label></div><div class=select><span data-t=disabled></span><select id=daylight-offset-sec name=daylightOffset_sec><option value=-7200 __S_NTP_DST_N7200__ data-t=dst_minus_2h></option><option value=-6300 __S_NTP_DST_N6300__ data-t=dst_minus_1h_45m></option><option value=-5400 __S_NTP_DST_N5400__ data-t=dst_minus_1h_30m></option><option value=-4500 __S_NTP_DST_N4500__ data-t=dst_minus_1h_15m></option><option value=-3600 __S_NTP_DST_N3600__ data-t=dst_minus_1h></option><option value=-2700 __S_NTP_DST_N2700__ data-t=dst_minus_45m></option><option value=-1800 __S_NTP_DST_N1800__ data-t=dst_minus_30m></option><option value=-900 __S_NTP_DST_N900__ data-t=dst_minus_15m></option><option value=0 __S_NTP_DST_0__ data-t=disabled></option><option value=900 __S_NTP_DST_900__ data-t=dst_plus_15m></option><option value=1800 __S_NTP_DST_1800__ data-t=dst_plus_30m></option><option value=2700 __S_NTP_DST_2700__ data-t=dst_plus_45m></option><option value=3600 __S_NTP_DST_3600__ data-t=dst_plus_1h></option><option value=4500 __S_NTP_DST_4500__ data-t=dst_plus_1h_15m></option><option value=5400 __S_NTP_DST_5400__ data-t=dst_plus_1h_30m></option><option value=6300 __S_NTP_DST_6300__ data-t=dst_plus_1h_45m></option><option value=7200 __S_NTP_DST_7200__ data-t=dst_plus_2h></option></select></div></div></div><div class="card-footer card-footer-equal-2"><button type=button class=button data-ntp-sync-trigger data-modal=#ntp-sync-modal disabled aria-disabled=true tooltip data-t-tooltip=ntp_unavailable_ap_tooltip><i class="icon icon-arrow-repeat"></i><span data-t=sync_from_ntp></span></button><button type=submit class="button button-primary"><i class="icon icon-save"></i><span data-t=save></span></button></div></div></form></div></div></div></main>
+<main class=dashboard-main>
+  <div class=dashboard-section>
+    <div class="dashboard-content dashboard-content-narrow">
+      <div class=breadcrumbs>
+        <a href=/index.html class=breadcrumbs-item><span data-t=home></span></a>
+        <a href=/settings.html class=breadcrumbs-item><span data-t=settings></span></a>
+        <span class=breadcrumbs-item><span data-t=time_synchronization></span></span>
+      </div>
+    </div>
+  </div>
+  <div class=dashboard-section>
+    <div class="dashboard-content dashboard-content-narrow">
+      <div class="flex flex-column flex-gap-medium">
+        <div class="group flex-item-grow mb-3">
+          <a href=/settings.html class="group-item button button-icon"><i class="icon icon-grid"></i></a>
+          <div class="flex-item-grow flex dropdown">
+            <div class="group-item flex-item-grow select" data-t=time_synchronization></div>
+            <div class=dropdown-items>
+              <a href=/settings/display.html class=dropdown-link data-t=display_eink></a>
+              <a href=/settings/network.html class=dropdown-link data-t=network_ap_sta></a>
+              <a href=/settings/mdns.html class=dropdown-link data-t=mdns_local_name></a>
+              <a href=/settings/ntp.html class="dropdown-link active" data-t=ntp_sync></a>
+              <a href=/settings/datetime.html class=dropdown-link data-t=rtc_datetime></a>
+              <a href=/settings/wakeup.html class=dropdown-link data-t=rtc_wakeup></a>
+              <a href=/settings/language.html class=dropdown-link data-t=language></a>
+              <a href=/settings/user.html class=dropdown-link data-t=user></a>
+              <a href=/settings/firmware.html class=dropdown-link data-t=firmware></a>
+            </div>
+          </div>
+        </div>
+        <div class="mb-2 mt-0 card-alert" data-dismiss-session=ntp-info-hint>
+          <div class=card-alert-icon><i class="icon icon-lightbulb"></i></div>
+          <small class=card-alert-text data-t=ntp_page_info></small>
+          <button class=card-alert-close type=button data-card-close></button>
+        </div>
+        <form data-ntp-form data-ntp-save-success-message data-ntp-save-error-message data-ntp-sync-success-message data-ntp-sync-error-message data-t-data-ntp-save-success-message=ntp_save_success data-t-data-ntp-save-error-message=ntp_save_error data-t-data-ntp-sync-success-message=ntp_sync_success data-t-data-ntp-sync-error-message=ntp_sync_error>
+          <template data-form-alert-template></template>
+          <div class="card-info mt-0 mb-6" data-ntp-ap-warning>
+            <div class=card-info-icon><i class="icon icon-exclamation-triangle"></i></div>
+            <div class=card-info-text data-t=ntp_unavailable_ap></div>
+          </div>
+          <div class=card>
+            <div class=card-body>
+              <div class="field mt-1" data-error data-t-data-error=invalid_ntp_server>
+                <div><label class=field-label for=field-ntp-server><span data-t=ntp_server></span></label></div>
+                <input class="input validate" id=field-ntp-server name=ntpServer value="__V_NTP_SRV__" type=text placeholder=ntp.example.com spellcheck=false pattern="^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?))*$" required>
+              </div>
+              <div class="field mt-3">
+                <div><label class=field-label for=field-ntp-auto-sync><span data-t=auto_sync_policy></span></label></div>
+                <div class=select>
+                  <span data-t=disabled></span>
+                  <select id=field-ntp-auto-sync name=ntpAutoSync data-ntp-auto-sync>
+                    <option value=0 data-t=disabled></option>
+                    <option value=86400 data-t=auto_sync_every_day></option>
+                    <option value=604800 data-t=auto_sync_every_week></option>
+                    <option value=2592000 data-t=auto_sync_every_month></option>
+                    <option value=7776000 data-t=auto_sync_every_3_months></option>
+                    <option value=15552000 data-t=auto_sync_every_6_months></option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer card-footer-equal-2">
+              <button type=button class=button data-ntp-sync-trigger data-modal=#ntp-sync-modal disabled aria-disabled=true tooltip data-t-tooltip=ntp_unavailable_ap_tooltip><i class="icon icon-arrow-repeat"></i><span data-t=sync_from_ntp></span></button>
+              <button type=submit class="button button-primary"><i class="icon icon-save"></i><span data-t=save></span></button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
 )PAGE";
     const char *Extra = DashboardNtpModals::Extra;
   }

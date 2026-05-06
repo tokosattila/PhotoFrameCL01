@@ -47,5 +47,5 @@
     "cinttypes": "cpp",
     "typeinfo": "cpp"
   },
-  "cmake.sourceDirectory": "D:/Works/PlatformIO/Esp/Esp32/PhotoFrame/lib/JPEGDEC"
+  "cmake.sourceDirectory": "D:/Works/PlatformIO/Esp/Esp32/PhotoFrameCL01/lib/AsyncTCP"
 }

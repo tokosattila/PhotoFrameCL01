@@ -21,6 +21,7 @@ namespace App {
       unsigned long GetCurrentEpoch();
       unsigned long GetCurrentEpochUTC();
       bool SyncSystemTime();
+      bool SyncSystemTimeIfNeeded();
       void PrintDateTimeInfo();
     private:
       NTP_();
@@ -41,6 +42,8 @@ namespace App {
       bool IsPacketValid(uint8_t *tPacket);
       bool UpdateTime();
       bool ForceTimeSync();
+      bool ApplyTimeZone();
+      String ResolveTimeZoneSpec() const;
       void SendNtpRequest();
       bool ShouldSyncNow(unsigned long tCurrentEpochUtc) const;
       bool PersistLastSuccessfulSyncEpoch(unsigned long tEpochUtc);

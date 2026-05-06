@@ -2,6 +2,18 @@
 
 namespace App {
 
+  static int32_t ResolveUtcOffsetMinutesFromEpoch(time_t tEpochUtc) {
+    struct tm tLocalTime = {};
+    struct tm tUtcTime = {};
+    localtime_r(&tEpochUtc, &tLocalTime);
+    gmtime_r(&tEpochUtc, &tUtcTime);
+    tLocalTime.tm_isdst = -1;
+    tUtcTime.tm_isdst = 0;
+    const time_t tLocalEpoch = mktime(&tLocalTime);
+    const time_t tUtcEpochAsLocal = mktime(&tUtcTime);
+    return static_cast<int32_t>((tLocalEpoch - tUtcEpochAsLocal) / 60);
+  }
+
   NTP_ &NTP_::Instance() {
     static NTP_ tInstance;
     return tInstance;
@@ -28,12 +40,12 @@ namespace App {
 
   void NTP_::Init() {
     ReloadConfig();
-    Begin();
   }
 
   void NTP_::ReloadConfig() {
     Guard tLock;
-    mCfg = CFG.Get<SNTPConfig>(); 
+    mCfg = CFG.Get<SNTPConfig>();
+    ApplyTimeZone();
   }
 
   bool NTP_::IsAvailable() {
@@ -52,8 +64,10 @@ namespace App {
   bool NTP_::Begin() {
     if (!IsAvailable()) {
       mCurrentEpoch = 0;
+      mUDPSetup = false;
       return false;
     }
+    if (mUDPSetup) return true;
     xLOG("Connecting to NTP → %s", mCfg.Server.c_str());
     if (mUDP.begin(mCfg.NtpPort) == 0) {
       xLOG("Connecting to NTP server failed");
@@ -62,7 +76,7 @@ namespace App {
     }
     xLOG("Connecting to NTP server successful");
     mUDPSetup = true;
-    return ForceTimeSync();
+    return true;
   }
 
   void NTP_::End() {
@@ -80,17 +94,10 @@ namespace App {
   }
 
   bool NTP_::UpdateTime() {
-    if (!IsAvailable()) return false;
-    if (mLastUpdate == 0 || mCurrentEpoch == 0) {
-      if (!mUDPSetup && !Begin()) return false;
-      return ForceTimeSync();
-    }
-    const unsigned long tCurrentEpochUtc = mCurrentEpoch + ((millis() - mLastUpdate) / 1000UL);
-    if (ShouldSyncNow(tCurrentEpochUtc)) {
-      if (!mUDPSetup && !Begin()) return false;
-      return ForceTimeSync();
-    }
-    return true;
+    const unsigned long tSystemEpochUtc = static_cast<unsigned long>(time(nullptr));
+    if (tSystemEpochUtc >= 1735689600UL) return true;
+    if (mCurrentEpoch == 0 || mLastUpdate == 0) return false;
+    return (mCurrentEpoch + ((millis() - mLastUpdate) / 1000UL)) >= 1735689600UL;
   }
 
   bool NTP_::ForceTimeSync() {
@@ -119,8 +126,7 @@ namespace App {
       mCurrentEpoch = 0;
       return false;
     }
-    setenv("TZ", "GMT", 1); 
-    tzset();
+    ApplyTimeZone();
     struct timeval tTv = { 
       .tv_sec = (time_t)(mCurrentEpoch), 
       .tv_usec = 0 
@@ -129,6 +135,29 @@ namespace App {
     mCfg.LastSuccessfulSyncEpochUtc = mCurrentEpoch;
     PersistLastSuccessfulSyncEpoch(mCurrentEpoch);
     return true;
+  }
+
+  bool NTP_::ApplyTimeZone() {
+    const String tTimeZoneSpec = ResolveTimeZoneSpec();
+    if (!tTimeZoneSpec.length()) return false;
+    if (setenv("TZ", tTimeZoneSpec.c_str(), 1) != 0) return false;
+    tzset();
+    return true;
+  }
+
+  String NTP_::ResolveTimeZoneSpec() const {
+    String tTimeZoneLabel = mCfg.TimeZoneLabel;
+    tTimeZoneLabel.trim();
+    if (tTimeZoneLabel.length() && tTimeZoneLabel.indexOf('/') >= 0) return tTimeZoneLabel;
+    const long tOffsetMinutes = (mCfg.GMTOffset + mCfg.DaylightOffset) / 60L;
+    const long tAbsOffsetMinutes = labs(tOffsetMinutes);
+    const long tHours = tAbsOffsetMinutes / 60L;
+    const long tMinutes = tAbsOffsetMinutes % 60L;
+    char tBuffer[24] = "UTC0";
+    const char tSign = (tOffsetMinutes >= 0) ? '-' : '+';
+    if (tMinutes == 0) snprintf(tBuffer, sizeof(tBuffer), "UTC%c%ld", tSign, tHours);
+    else snprintf(tBuffer, sizeof(tBuffer), "UTC%c%ld:%02ld", tSign, tHours, tMinutes);
+    return String(tBuffer);
   }
 
   bool NTP_::ShouldSyncNow(unsigned long tCurrentEpochUtc) const {
@@ -163,30 +192,33 @@ namespace App {
   }
 
   unsigned long NTP_::GetCurrentEpoch() {
-    Guard tLock;
-    unsigned long tBase = GetCurrentEpochUTC();
-    if (tBase == 0) return 0;
-    long tOffset = mCfg.GMTOffset + mCfg.DaylightOffset;
-    long tLocalEpoch = static_cast<long>(tBase) + tOffset;
-    return tLocalEpoch > 0 ? static_cast<unsigned long>(tLocalEpoch) : 0UL;
+    return GetCurrentEpochUTC();
   }
 
   unsigned long NTP_::GetCurrentEpochUTC() {
     Guard tLock;
+    const unsigned long tSystemEpochUtc = static_cast<unsigned long>(time(nullptr));
+    if (tSystemEpochUtc >= 1735689600UL) return tSystemEpochUtc;
     if (!UpdateTime()) return 0;
-    if (mCurrentEpoch == 0) return 0;
     return mCurrentEpoch + ((millis() - mLastUpdate) / 1000UL);
   }
 
   void NTP_::GetTime(char *tBuffer, uint8_t tLength, char tFormat) {
     unsigned long tEpoch = GetCurrentEpoch();
-    int tHours   = (tEpoch % SECONDS_PER_DAY) / SECONDS_PER_HOUR;
-    int tMinutes = (tEpoch % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE;
-    int tSeconds = tEpoch % SECONDS_PER_MINUTE;
     if (tLength < 9) { 
       tBuffer[0] = '\0';
       return;
     }
+    if (tEpoch == 0) {
+      tBuffer[0] = '\0';
+      return;
+    }
+    time_t tTime = static_cast<time_t>(tEpoch);
+    struct tm tTimeInfo = {};
+    localtime_r(&tTime, &tTimeInfo);
+    const int tHours = tTimeInfo.tm_hour;
+    const int tMinutes = tTimeInfo.tm_min;
+    const int tSeconds = tTimeInfo.tm_sec;
     switch (tFormat) {
       case 'h': 
         FormatTwoDigits(tBuffer, tHours); 
@@ -208,30 +240,23 @@ namespace App {
   }
 
   void NTP_::GetDate(char *tBuffer, uint8_t tLength, char tFormat) {
-    UpdateTime();
     unsigned long tEpoch = GetCurrentEpoch();
-    unsigned long tDays = tEpoch / SECONDS_PER_DAY;
-    unsigned long tYear = 1970;
-    while (tDays >= (IsLeapYear(tYear) ? 366UL : 365UL)) {
-      tDays -= IsLeapYear(tYear) ? 366UL : 365UL;
-      tYear++;
-    }
-    uint8_t tMonth = 0;
-    static const uint8_t kDaysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    while (tDays >= (tMonth == 1 && IsLeapYear(tYear) ? 29U : kDaysInMonth[tMonth])) {
-      tDays -= (tMonth == 1 && IsLeapYear(tYear) ? 29U : kDaysInMonth[tMonth]);
-      tMonth++;
-    }
-    unsigned long tDay = tDays + 1;
     if (tLength < 11) { tBuffer[0] = '\0'; return; }
+    if (tEpoch == 0) { tBuffer[0] = '\0'; return; }
+    time_t tTime = static_cast<time_t>(tEpoch);
+    struct tm tTimeInfo = {};
+    localtime_r(&tTime, &tTimeInfo);
+    const int tYear = tTimeInfo.tm_year + 1900;
+    const int tMonth = tTimeInfo.tm_mon + 1;
+    const int tDay = tTimeInfo.tm_mday;
     switch (tFormat) {
       case 'y': itoa(tYear, tBuffer, 10); break;
-      case 'm': itoa(tMonth + 1, tBuffer, 10); break;
+      case 'm': itoa(tMonth, tBuffer, 10); break;
       case 'd': itoa(tDay, tBuffer, 10); break;
       default:
         itoa(tYear, tBuffer, 10);
         tBuffer[4] = '.';
-        FormatTwoDigits(tBuffer + 5, tMonth + 1);
+        FormatTwoDigits(tBuffer + 5, tMonth);
         tBuffer[7] = '.';
         FormatTwoDigits(tBuffer + 8, tDay);
         tBuffer[10] = '\0';
@@ -294,14 +319,25 @@ namespace App {
     return tSuccess;
   }
 
+  bool NTP_::SyncSystemTimeIfNeeded() {
+    unsigned long tCurrentEpochUtc = static_cast<unsigned long>(time(nullptr));
+    if (tCurrentEpochUtc < 1735689600UL) tCurrentEpochUtc = static_cast<unsigned long>(RTC.GetEpoch());
+    if (!ShouldSyncNow(tCurrentEpochUtc)) {
+      xLOG("NTP auto sync skipped, policy not due");
+      return true;
+    }
+    return SyncSystemTime();
+  }
+
   int8_t NTP_::GetGMTOffset() {
-    UpdateTime();
+    const unsigned long tEpochUtc = GetCurrentEpochUTC();
+    if (tEpochUtc >= 1735689600UL) return static_cast<int8_t>(ResolveUtcOffsetMinutesFromEpoch(static_cast<time_t>(tEpochUtc)) / 60);
     const long tOffset = mCfg.GMTOffset + mCfg.DaylightOffset;
     return static_cast<int8_t>(tOffset / SECONDS_PER_HOUR);
   }
 
   const char *NTP_::GetTimezoneName() {
-    return mCfg.DaylightOffset != 0 ? "DST" : "STD";
+    return mCfg.TimeZoneLabel.length() ? mCfg.TimeZoneLabel.c_str() : "UTC";
   }
 
   void NTP_::PrintDateTimeInfo() {

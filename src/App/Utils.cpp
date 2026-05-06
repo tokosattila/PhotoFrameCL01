@@ -132,10 +132,9 @@ namespace App {
       return tBuffer;
     }
     if (tAsDateTime) {
-      const long tOffset = mCfg.Ntp.GMTOffset + mCfg.Ntp.DaylightOffset;
-      time_t tTime = static_cast<time_t>(static_cast<long>(tEpoch) + tOffset);
-      struct tm tTm;
-      gmtime_r(&tTime, &tTm);
+      time_t tTime = static_cast<time_t>(tEpoch);
+      struct tm tTm = {};
+      localtime_r(&tTime, &tTm);
       snprintf(tBuffer, tLength, "%04d.%02d.%02d %02d:%02d:%02d", tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_hour, tTm.tm_min, tTm.tm_sec);
       return tBuffer;
     }
@@ -445,15 +444,21 @@ namespace App {
   }
 
   uint64_t Utils_::SecondsUntilHour(uint8_t tTargetHour) {
-    uint32_t tEpochUtc = static_cast<uint32_t>(time(nullptr));
-    if (tEpochUtc < 1735689600UL) tEpochUtc = static_cast<uint32_t>(RTC.GetEpoch());
-    if (tEpochUtc < 1735689600UL) return SECONDS_PER_DAY;
-    long tLocalEpoch = static_cast<long>(tEpochUtc) + mCfg.Ntp.GMTOffset + mCfg.Ntp.DaylightOffset;
-    if (tLocalEpoch < 0) tLocalEpoch = 0;
-    uint32_t tNowSec = static_cast<uint32_t>(static_cast<unsigned long>(tLocalEpoch) % SECONDS_PER_DAY);
-    uint32_t tTargetSec = tTargetHour * SECONDS_PER_HOUR;
-    if (tTargetSec <= tNowSec) tTargetSec += SECONDS_PER_DAY;
-    return tTargetSec - tNowSec;
+    time_t tEpochUtc = static_cast<time_t>(time(nullptr));
+    if (static_cast<unsigned long>(tEpochUtc) < 1735689600UL) tEpochUtc = static_cast<time_t>(RTC.GetEpoch());
+    if (static_cast<unsigned long>(tEpochUtc) < 1735689600UL) return SECONDS_PER_DAY;
+    struct tm tTargetTime = {};
+    localtime_r(&tEpochUtc, &tTargetTime);
+    tTargetTime.tm_hour = tTargetHour % 24;
+    tTargetTime.tm_min = 0;
+    tTargetTime.tm_sec = 0;
+    time_t tTargetEpochUtc = mktime(&tTargetTime);
+    if (tTargetEpochUtc <= tEpochUtc) {
+      tTargetTime.tm_mday += 1;
+      tTargetEpochUtc = mktime(&tTargetTime);
+    }
+    if (tTargetEpochUtc <= tEpochUtc) return SECONDS_PER_DAY;
+    return static_cast<uint64_t>(tTargetEpochUtc - tEpochUtc);
   }
 
   void Utils_::SleepAndWakeup() {
