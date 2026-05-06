@@ -19,7 +19,6 @@ class Application {
   static bool sDashboardTaskStarted;
 
   public:
-
     using Guard = AutoGuard<Application>;
 
     static Application &Instance() {
@@ -63,7 +62,7 @@ class Application {
       const bool tBatteryConnected = tBatteryAvailable && BAT.IsBatteryConnected();
       if (!tBatteryConnected) UTL.DisableBrownout();
       SND.Init(true);
-      SND.SetVolume(80);
+      SND.SetVolume(100);
       #if PRODUCTION
         const bool tLowBatteryDetected = BAT.IsLowBattery();
         if (tLowBatteryDetected) {
@@ -171,28 +170,12 @@ class Application {
       return DSP.PrintJpg(0, 0, tImage);
     }
 
-    static const char *ResolveBootReason() {
-      switch (esp_reset_reason()) {
-        case ESP_RST_POWERON:   return "POWER_ON";
-        case ESP_RST_EXT:       return "EXT_PIN";
-        case ESP_RST_SW:        return "SOFTWARE";
-        case ESP_RST_PANIC:     return "PANIC";
-        case ESP_RST_INT_WDT:   return "INT_WDT";
-        case ESP_RST_TASK_WDT:  return "TASK_WDT";
-        case ESP_RST_WDT:       return "WDT";
-        case ESP_RST_DEEPSLEEP: return "TIMER_WAKEUP";
-        case ESP_RST_BROWNOUT:  return "BROWNOUT";
-        case ESP_RST_SDIO:      return "SDIO";
-        default:                return "UNKNOWN";
-      }
-    }
-
     void PhotoFrameMode() {
       ReloadConfig();
       UTL.PrintInfo("Device starts in Photo Frame Mode", EUtilsInfoType::Single);
       STG.Init(true);
       LGM.Init();
-      LGM.Boot(ResolveBootReason(), "PHOTO_FRAME", mCfg.Device.Version.c_str(), mBootCount);
+      LGM.Boot(UTL.ResolveBootReason(), "PHOTO_FRAME", mCfg.Device.Version.c_str(), mBootCount);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       const char *tImage = mCfg.Display.CurrentFile.isEmpty() ? STG.GetNextFile("")  : mCfg.Display.CurrentFile.c_str();
@@ -231,7 +214,7 @@ class Application {
       }
       STG.Init(true);
       LGM.Init();
-      LGM.Boot(ResolveBootReason(), "MAINTENANCE", mCfg.Device.Version.c_str(), mBootCount);
+      LGM.Boot(UTL.ResolveBootReason(), "MAINTENANCE", mCfg.Device.Version.c_str(), mBootCount);
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       if (!sButtonTaskStarted) {

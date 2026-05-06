@@ -437,6 +437,22 @@ namespace App {
     xLOG("Wake-up system → %s [%d]", tReasonStr, (unsigned long)tCause);
   }
 
+  const char *Utils_::ResolveBootReason() {
+    switch (esp_reset_reason()) {
+      case ESP_RST_POWERON: return "POWER_ON";
+      case ESP_RST_EXT: return "EXT_PIN";
+      case ESP_RST_SW: return "SOFTWARE";
+      case ESP_RST_PANIC: return "PANIC";
+      case ESP_RST_INT_WDT: return "INT_WDT";
+      case ESP_RST_TASK_WDT: return "TASK_WDT";
+      case ESP_RST_WDT: return "WDT";
+      case ESP_RST_DEEPSLEEP: return "TIMER_WAKEUP";
+      case ESP_RST_BROWNOUT: return "BROWNOUT";
+      case ESP_RST_SDIO: return "SDIO";
+      default: return "UNKNOWN";
+    }
+  }
+
   bool Utils_::WasWokenByPin(uint8_t tPin) {
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return false;
     const uint64_t tStatus = esp_sleep_get_ext1_wakeup_status();

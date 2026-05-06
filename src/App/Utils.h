@@ -29,6 +29,7 @@ namespace App {
       const char *EpochToReadableFormat(unsigned long tEpoch, bool tAsDateTime, char *tBuffer, size_t tLength);
       void PrintPartitionInfo();
       void PrintBootInfo();
+      static const char *ResolveBootReason();
       void PrintWakeupReason();
       void PrintDeviceInfo();
       void PrintInfo(const char *tText, EUtilsInfoType tType = EUtilsInfoType::Cell, uint8_t tWidth = 0);
