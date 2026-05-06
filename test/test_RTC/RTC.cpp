@@ -1,8 +1,3 @@
-/**
- * @file RTC.cpp
- * @brief Unit tests for RTC helper logic (pure C++ logic, no hardware)
- */
-
 #include <unity.h>
 #include <cstdint>
 
@@ -48,7 +43,6 @@ static bool IsDateTimePlausible(const SRTCDateTime &tDateTime) {
 static unsigned long DateTimeToEpoch(const SRTCDateTime &tDateTime) {
   unsigned long tDays = 0;
   for (uint16_t tYear = 1970; tYear < tDateTime.Year; tYear++) tDays += IsLeapYear(tYear) ? 366 : 365;
-
   static const uint8_t kDaysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   for (uint8_t tMonth = 1; tMonth < tDateTime.Month; tMonth++) {
     tDays += kDaysInMonth[tMonth - 1];
@@ -66,14 +60,11 @@ static void EpochToDateTime(unsigned long tEpoch, SRTCDateTime &tDateTime) {
   tEpoch /= 60;
   unsigned long tHours = tEpoch % 24;
   tEpoch /= 24;
-
   tDateTime.Second = static_cast<uint8_t>(tSeconds);
   tDateTime.Minute = static_cast<uint8_t>(tMinutes);
   tDateTime.Hour = static_cast<uint8_t>(tHours);
-
   unsigned long tDays = tEpoch;
   tDateTime.DayOfWeek = static_cast<uint8_t>((tDays + 4) % 7);
-
   uint16_t tYear = 1970;
   while (true) {
     const uint16_t tDaysInYear = IsLeapYear(tYear) ? 366 : 365;
@@ -81,8 +72,8 @@ static void EpochToDateTime(unsigned long tEpoch, SRTCDateTime &tDateTime) {
     tDays -= tDaysInYear;
     tYear++;
   }
-  tDateTime.Year = tYear;
 
+  tDateTime.Year = tYear;
   static const uint8_t kDaysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   uint8_t tMonth = 1;
   while (tMonth <= 12) {
@@ -135,10 +126,8 @@ void test_IsDateTimePlausible_rejects_invalid_ranges() {
 void test_DateTimeToEpoch_known_values() {
   SRTCDateTime tDateTime = {0, 0, 0, 4, 1, 1, 1970};
   TEST_ASSERT_EQUAL_UINT32(0, DateTimeToEpoch(tDateTime));
-
   tDateTime = {0, 0, 0, 0, 1, 1, 2026};
   TEST_ASSERT_EQUAL_UINT32(1767225600UL, DateTimeToEpoch(tDateTime));
-
   tDateTime = {45, 30, 12, 0, 1, 1, 2024};
   TEST_ASSERT_EQUAL_UINT32(1704112245UL, DateTimeToEpoch(tDateTime));
 }
@@ -152,7 +141,6 @@ void test_EpochToDateTime_known_values() {
   TEST_ASSERT_EQUAL_UINT8(0, tDateTime.Hour);
   TEST_ASSERT_EQUAL_UINT8(0, tDateTime.Minute);
   TEST_ASSERT_EQUAL_UINT8(0, tDateTime.Second);
-
   EpochToDateTime(1767225600UL, tDateTime);
   TEST_ASSERT_EQUAL_UINT16(2026, tDateTime.Year);
   TEST_ASSERT_EQUAL_UINT8(1, tDateTime.Month);
@@ -178,11 +166,11 @@ void test_CanSyncEpochToSystem_bounds() {
 }
 
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
-
   RUN_TEST(test_Bcd_roundtrip_0_to_99);
   RUN_TEST(test_IsDateTimePlausible_accepts_valid);
   RUN_TEST(test_IsDateTimePlausible_rejects_invalid_ranges);
@@ -190,6 +178,5 @@ int main(int argc, char **argv) {
   RUN_TEST(test_EpochToDateTime_known_values);
   RUN_TEST(test_Epoch_DateTime_roundtrip);
   RUN_TEST(test_CanSyncEpochToSystem_bounds);
-
   return UNITY_END();
 }

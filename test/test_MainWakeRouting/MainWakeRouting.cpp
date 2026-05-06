@@ -51,6 +51,7 @@ void test_ResolveBootRouteDev_default_photoframe() {
 }
 
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {

@@ -1,8 +1,3 @@
-/**
- * @file DashboardBootTarget.cpp
- * @brief Unit tests for dashboard boot-target selection logic (pure C++ logic).
- */
-
 #include <unity.h>
 #include <string>
 
@@ -65,20 +60,18 @@ void test_BootTargetSaveResult_accepts_valid_partition() {
 }
 
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
-
   UNITY_BEGIN();
-
   RUN_TEST(test_BootTargetSubtype_ota_1_selects_ota1);
   RUN_TEST(test_BootTargetSubtype_defaults_to_ota0);
   RUN_TEST(test_BootTargetSaveResult_rejects_missing_partition);
   RUN_TEST(test_BootTargetSaveResult_rejects_invalid_app_partition);
   RUN_TEST(test_BootTargetSaveResult_rejects_set_boot_failure);
   RUN_TEST(test_BootTargetSaveResult_accepts_valid_partition);
-
   return UNITY_END();
 }

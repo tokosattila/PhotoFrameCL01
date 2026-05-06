@@ -1,8 +1,3 @@
-/**
- * @file test_utils.cpp
- * @brief Unit tests for Utils functions (pure C++ logic, no hardware)
- */
-
 #include <unity.h>
 #include <cstring>
 #include <cstdint>
@@ -20,10 +15,6 @@
   #include <strings.h>
 #endif
 
-// ============================================================================
-// Standalone implementations for testing (extracted from Utils.cpp)
-// ============================================================================
-
 bool SecureStrcmp(const char *tA, const char *tB) {
   if (!tA || !tB) return false;
   size_t tLenA = strlen(tA);
@@ -33,6 +24,7 @@ bool SecureStrcmp(const char *tA, const char *tB) {
   for (size_t i = 0; i < tMinLen; i++) {
     tDiff |= static_cast<uint8_t>(tA[i] ^ tB[i]);
   }
+
   return tDiff == 0;
 }
 
@@ -82,6 +74,7 @@ bool IsDashboardLanguageEnabled(const std::vector<std::string> &tLanguages, cons
   for (const std::string &tItem : tLanguages) {
     if (NormalizeDashboardLanguageCode(tItem) == tNormalized) return true;
   }
+
   return false;
 }
 
@@ -93,6 +86,7 @@ std::string ResolveDashboardLanguage(const std::vector<std::string> &tLanguages,
     const std::string tNormalizedLanguage = NormalizeDashboardLanguageCode(tLanguage);
     if (!tNormalizedLanguage.empty()) return tNormalizedLanguage;
   }
+
   return !tNormalizedPreferredLanguage.empty() ? tNormalizedPreferredLanguage : std::string("en");
 }
 
@@ -106,15 +100,12 @@ void NormalizeDashboardEnabledLanguages(std::vector<std::string> &tLanguages, co
     }
     tNormalizedLanguages.push_back(tNormalizedLanguage);
   };
+
   for (const std::string &tLanguage : tLanguages) tAppendUnique(tLanguage);
   if (tNormalizedLanguages.empty()) tAppendUnique(ResolveDashboardLanguage(tNormalizedLanguages, tPreferredLanguage));
   if (tNormalizedLanguages.empty()) tAppendUnique("en");
   tLanguages = tNormalizedLanguages;
 }
-
-// ============================================================================
-// SecureStrcmp Tests
-// ============================================================================
 
 void test_SecureStrcmp_identical_strings() {
   TEST_ASSERT_TRUE(SecureStrcmp("hello", "hello"));
@@ -145,10 +136,6 @@ void test_SecureStrcmp_case_sensitive() {
   TEST_ASSERT_FALSE(SecureStrcmp("ADMIN", "admin"));
 }
 
-// ============================================================================
-// SafeAtoul Tests
-// ============================================================================
-
 void test_SafeAtoul_valid_numbers() {
   TEST_ASSERT_EQUAL_UINT32(100, SafeAtoul("100", 0, 1000, 0));
   TEST_ASSERT_EQUAL_UINT32(0, SafeAtoul("0", 0, 100, 50));
@@ -156,84 +143,68 @@ void test_SafeAtoul_valid_numbers() {
 }
 
 void test_SafeAtoul_boundary_values() {
-  TEST_ASSERT_EQUAL_UINT32(10, SafeAtoul("10", 10, 100, 50));  // min value
-  TEST_ASSERT_EQUAL_UINT32(100, SafeAtoul("100", 10, 100, 50)); // max value
+  TEST_ASSERT_EQUAL_UINT32(10, SafeAtoul("10", 10, 100, 50));
+  TEST_ASSERT_EQUAL_UINT32(100, SafeAtoul("100", 10, 100, 50));
 }
 
 void test_SafeAtoul_out_of_range() {
-  TEST_ASSERT_EQUAL_UINT32(50, SafeAtoul("5", 10, 100, 50));   // below min
-  TEST_ASSERT_EQUAL_UINT32(50, SafeAtoul("200", 10, 100, 50)); // above max
+  TEST_ASSERT_EQUAL_UINT32(50, SafeAtoul("5", 10, 100, 50));
+  TEST_ASSERT_EQUAL_UINT32(50, SafeAtoul("200", 10, 100, 50));
 }
 
 void test_SafeAtoul_invalid_input() {
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("", 0, 100, 99));       // empty string
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul(nullptr, 0, 100, 99));  // null
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("abc", 0, 100, 99));    // non-numeric
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("12abc", 0, 100, 99));  // partial numeric
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("", 0, 100, 99));
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul(nullptr, 0, 100, 99));
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("abc", 0, 100, 99));
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("12abc", 0, 100, 99));
 }
 
 void test_SafeAtoul_whitespace() {
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul(" 50", 0, 100, 99));   // leading space - rejected
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("50 ", 0, 100, 99));   // trailing space - rejected
-  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("\t50", 0, 100, 99));  // leading tab - rejected
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul(" 50", 0, 100, 99));
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("50 ", 0, 100, 99));
+  TEST_ASSERT_EQUAL_UINT32(99, SafeAtoul("\t50", 0, 100, 99));
 }
-
-// ============================================================================
-// ByteToReadableSize Tests
-// ============================================================================
 
 void test_ByteToReadableSize_bytes() {
   char buffer[32];
-  
   ByteToReadableSize(0, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("0 B", buffer);
-  
   ByteToReadableSize(512, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("512 B", buffer);
-  
   ByteToReadableSize(1023, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1023 B", buffer);
 }
 
 void test_ByteToReadableSize_kilobytes() {
   char buffer[32];
-  
   ByteToReadableSize(1024, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1 KB", buffer);
-  
   ByteToReadableSize(2048, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("2 KB", buffer);
-  
   ByteToReadableSize(1536, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1.50 KB", buffer);
 }
 
 void test_ByteToReadableSize_megabytes() {
   char buffer[32];
-  
   ByteToReadableSize(1024 * 1024, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1 MB", buffer);
-  
   ByteToReadableSize(2 * 1024 * 1024, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("2 MB", buffer);
-  
   ByteToReadableSize(1536 * 1024, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1.50 MB", buffer);
 }
 
 void test_ByteToReadableSize_large_values() {
   char buffer[32];
-  
   ByteToReadableSize(16 * 1024 * 1024, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("16 MB", buffer);
 }
 
 void test_ByteToReadableSize_gigabytes() {
   char buffer[32];
-
   ByteToReadableSize(8ULL * 1024ULL * 1024ULL * 1024ULL, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("8 GB", buffer);
-
   ByteToReadableSize(7ULL * 1024ULL * 1024ULL * 1024ULL + 512ULL * 1024ULL * 1024ULL, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("7.50 GB", buffer);
 }
@@ -253,10 +224,6 @@ void test_WasWokenByPin_non_ext1_cause() {
   TEST_ASSERT_FALSE(WasWokenByPin(4, (1ULL << 5), 5));
 }
 
-// ============================================================================
-// EpochToReadableDuration - format duration (not datetime)
-// ============================================================================
-
 static const unsigned long SECONDS_PER_MINUTE = 60;
 static const unsigned long SECONDS_PER_HOUR = 3600;
 static const unsigned long SECONDS_PER_DAY = 86400;
@@ -268,6 +235,7 @@ const char *EpochToReadableDuration(unsigned long tEpoch, char *tBuffer, size_t 
     strcpy(tBuffer, "0");
     return tBuffer;
   }
+
   if (tEpoch < SECONDS_PER_MINUTE) snprintf(tBuffer, tLength, "%lu sec", tEpoch);
   else if (tEpoch < SECONDS_PER_HOUR) snprintf(tBuffer, tLength, "%02lu:%02lu min", tEpoch / SECONDS_PER_MINUTE, tEpoch % SECONDS_PER_MINUTE);
   else if (tEpoch < SECONDS_PER_DAY) snprintf(tBuffer, tLength, "%lu:%02lu:%02lu hour(s)", tEpoch / SECONDS_PER_HOUR, (tEpoch % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE, tEpoch % SECONDS_PER_MINUTE);
@@ -285,10 +253,8 @@ void test_EpochToReadableDuration_seconds() {
   char buffer[64];
   EpochToReadableDuration(1, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1 sec", buffer);
-  
   EpochToReadableDuration(30, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("30 sec", buffer);
-  
   EpochToReadableDuration(59, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("59 sec", buffer);
 }
@@ -297,10 +263,8 @@ void test_EpochToReadableDuration_minutes() {
   char buffer[64];
   EpochToReadableDuration(60, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("01:00 min", buffer);
-  
   EpochToReadableDuration(90, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("01:30 min", buffer);
-  
   EpochToReadableDuration(3599, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("59:59 min", buffer);
 }
@@ -309,10 +273,8 @@ void test_EpochToReadableDuration_hours() {
   char buffer[64];
   EpochToReadableDuration(3600, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1:00:00 hour(s)", buffer);
-  
   EpochToReadableDuration(7200, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("2:00:00 hour(s)", buffer);
-  
   EpochToReadableDuration(3661, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1:01:01 hour(s)", buffer);
 }
@@ -321,10 +283,8 @@ void test_EpochToReadableDuration_days() {
   char buffer[64];
   EpochToReadableDuration(86400, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1 day(s) 00:00:00", buffer);
-  
   EpochToReadableDuration(172800, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("2 day(s) 00:00:00", buffer);
-  
   EpochToReadableDuration(90061, buffer, sizeof(buffer));
   TEST_ASSERT_EQUAL_STRING("1 day(s) 01:01:01", buffer);
 }
@@ -340,10 +300,6 @@ void test_EpochToReadableDuration_zero_length() {
   TEST_ASSERT_EQUAL_STRING("", result);
 }
 
-// ============================================================================
-// Standalone: SecondsUntilHour (calculation core, no RTC dependency)
-// ============================================================================
-
 uint64_t SecondsUntilHour(uint8_t tTargetHour, uint8_t tNowHour, uint8_t tNowMinute, uint8_t tNowSecond) {
   uint32_t tNowSec = tNowHour * SECONDS_PER_HOUR + tNowMinute * SECONDS_PER_MINUTE + tNowSecond;
   uint32_t tTargetSec = tTargetHour * SECONDS_PER_HOUR;
@@ -354,10 +310,6 @@ uint64_t SecondsUntilHour(uint8_t tTargetHour, uint8_t tNowHour, uint8_t tNowMin
 bool HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs) {
   return static_cast<uint32_t>(tNowMs - tStartMs) >= tDelayMs;
 }
-
-// ============================================================================
-// SecondsUntilHour Tests
-// ============================================================================
 
 void test_SecondsUntilHour_target_in_future() {
   TEST_ASSERT_EQUAL_UINT32(6 * 3600, (uint32_t)SecondsUntilHour(10, 4, 0, 0));
@@ -402,10 +354,6 @@ void test_HasElapsedMs_handles_wraparound() {
   TEST_ASSERT_FALSE(HasElapsedMs(0xFFFFFF00UL, 0x00000020UL, 300));
 }
 
-// ============================================================================
-// Standalone: GlobMatch (case-insensitive glob, no hardware dependency)
-// ============================================================================
-
 bool GlobMatch(const char *tPattern, const char *tText) {
   while (*tPattern) {
     if (*tPattern == '*') {
@@ -421,12 +369,9 @@ bool GlobMatch(const char *tPattern, const char *tText) {
     ++tPattern;
     ++tText;
   }
+
   return *tText == '\0';
 }
-
-// ============================================================================
-// GlobMatch Tests
-// ============================================================================
 
 void test_GlobMatch_exact() {
   TEST_ASSERT_TRUE(GlobMatch("hello.jpg", "hello.jpg"));
@@ -479,26 +424,21 @@ void test_GlobMatch_multiple_stars() {
   TEST_ASSERT_FALSE(GlobMatch("*z*", "photo.jpg"));
 }
 
-// ============================================================================
-// Standalone: IsSD / IsLFS / IsValidTarget / IsSameTarget
-// ============================================================================
-
 bool IsSD(const char *tTarget) {
   return strcasecmp(tTarget, "sd") == 0 || strcasecmp(tTarget, "sdcard") == 0;
 }
+
 bool IsLFS(const char *tTarget) {
   return strcasecmp(tTarget, "lfs") == 0 || strcasecmp(tTarget, "littlefs") == 0;
 }
+
 bool IsValidTarget(const char *tTarget) {
   return IsSD(tTarget) || IsLFS(tTarget);
 }
+
 bool IsSameTarget(const char *tA, const char *tB) {
   return (IsSD(tA) && IsSD(tB)) || (IsLFS(tA) && IsLFS(tB));
 }
-
-// ============================================================================
-// IsSD / IsLFS / IsValidTarget / IsSameTarget Tests
-// ============================================================================
 
 void test_IsSD() {
   TEST_ASSERT_TRUE(IsSD("sd"));
@@ -553,10 +493,6 @@ void test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode() {
   TEST_ASSERT_FALSE(IsDashboardLanguageEnabled(tLanguages, "en"));
 }
 
-// ============================================================================
-// Standalone: SplitPathAndFile
-// ============================================================================
-
 static const char *kImagesDir = "images";
 
 bool SplitPathAndFile(const char *tSpec, char *tDir, size_t tDirSize, char *tFile, size_t tFileSize) {
@@ -591,12 +527,9 @@ bool SplitPathAndFile(const char *tSpec, char *tDir, size_t tDirSize, char *tFil
     strncpy(tFile, tSpec, tLen);
     tFile[tLen] = '\0';
   }
+
   return true;
 }
-
-// ============================================================================
-// Standalone: GetLeafName / EqualsIgnoreCase (extracted from Utils.cpp)
-// ============================================================================
 
 const char *GetLeafName(const char *tPath) {
   if (!tPath) return nullptr;
@@ -611,12 +544,9 @@ bool EqualsIgnoreCase(const char *tLeft, const char *tRight) {
     ++tLeft;
     ++tRight;
   }
+
   return *tLeft == '\0' && *tRight == '\0';
 }
-
-// ============================================================================
-// GetLeafName Tests
-// ============================================================================
 
 void test_GetLeafName_simple_path() {
   TEST_ASSERT_EQUAL_STRING("photo.jpg", GetLeafName("/images/photo.jpg"));
@@ -645,10 +575,6 @@ void test_GetLeafName_null() {
 void test_GetLeafName_only_slash() {
   TEST_ASSERT_EQUAL_STRING("", GetLeafName("/"));
 }
-
-// ============================================================================
-// EqualsIgnoreCase Tests
-// ============================================================================
 
 void test_EqualsIgnoreCase_identical() {
   TEST_ASSERT_TRUE(EqualsIgnoreCase("photo.jpg", "photo.jpg"));
@@ -680,10 +606,6 @@ void test_EqualsIgnoreCase_one_empty() {
   TEST_ASSERT_FALSE(EqualsIgnoreCase("", "photo.jpg"));
   TEST_ASSERT_FALSE(EqualsIgnoreCase("photo.jpg", ""));
 }
-
-// ============================================================================
-// SplitPathAndFile Tests
-// ============================================================================
 
 void test_SplitPathAndFile_absolute_path() {
   char tDir[64], tFile[64];
@@ -738,43 +660,30 @@ void test_SplitPathAndFile_glob_pattern() {
   TEST_ASSERT_EQUAL_STRING("*.jpg", tFile);
 }
 
-// ============================================================================
-// Test Runner
-// ============================================================================
-
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
-  
-  // SecureStrcmp tests
   RUN_TEST(test_SecureStrcmp_identical_strings);
   RUN_TEST(test_SecureStrcmp_different_strings);
   RUN_TEST(test_SecureStrcmp_different_lengths);
   RUN_TEST(test_SecureStrcmp_null_inputs);
   RUN_TEST(test_SecureStrcmp_case_sensitive);
-  
-  // SafeAtoul tests
   RUN_TEST(test_SafeAtoul_valid_numbers);
   RUN_TEST(test_SafeAtoul_boundary_values);
   RUN_TEST(test_SafeAtoul_out_of_range);
   RUN_TEST(test_SafeAtoul_invalid_input);
   RUN_TEST(test_SafeAtoul_whitespace);
-  
-  // ByteToReadableSize tests
   RUN_TEST(test_ByteToReadableSize_bytes);
   RUN_TEST(test_ByteToReadableSize_kilobytes);
   RUN_TEST(test_ByteToReadableSize_megabytes);
   RUN_TEST(test_ByteToReadableSize_large_values);
   RUN_TEST(test_ByteToReadableSize_gigabytes);
-
-  // WasWokenByPin tests
   RUN_TEST(test_WasWokenByPin_ext1_and_matching_pin);
   RUN_TEST(test_WasWokenByPin_ext1_but_other_pin);
   RUN_TEST(test_WasWokenByPin_non_ext1_cause);
-  
-  // EpochToReadableDuration tests
   RUN_TEST(test_EpochToReadableDuration_zero);
   RUN_TEST(test_EpochToReadableDuration_seconds);
   RUN_TEST(test_EpochToReadableDuration_minutes);
@@ -782,8 +691,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_EpochToReadableDuration_days);
   RUN_TEST(test_EpochToReadableDuration_null_buffer);
   RUN_TEST(test_EpochToReadableDuration_zero_length);
-  
-  // SecondsUntilHour tests
   RUN_TEST(test_SecondsUntilHour_target_in_future);
   RUN_TEST(test_SecondsUntilHour_target_passed_wraps);
   RUN_TEST(test_SecondsUntilHour_same_hour_wraps);
@@ -793,8 +700,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_HasElapsedMs_not_elapsed_yet);
   RUN_TEST(test_HasElapsedMs_elapsed_normally);
   RUN_TEST(test_HasElapsedMs_handles_wraparound);
-  
-  // GlobMatch tests
   RUN_TEST(test_GlobMatch_exact);
   RUN_TEST(test_GlobMatch_star_suffix);
   RUN_TEST(test_GlobMatch_star_prefix);
@@ -804,18 +709,12 @@ int main(int argc, char **argv) {
   RUN_TEST(test_GlobMatch_no_match);
   RUN_TEST(test_GlobMatch_empty);
   RUN_TEST(test_GlobMatch_multiple_stars);
-  
-  // IsSD / IsLFS / IsValidTarget / IsSameTarget tests
   RUN_TEST(test_IsSD);
   RUN_TEST(test_IsLFS);
   RUN_TEST(test_IsValidTarget);
   RUN_TEST(test_IsSameTarget);
-
-  // Dashboard language normalization tests
   RUN_TEST(test_NormalizeDashboardEnabledLanguages_keeps_user_disabled_current_language_off);
   RUN_TEST(test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode);
-  
-  // SplitPathAndFile tests
   RUN_TEST(test_SplitPathAndFile_absolute_path);
   RUN_TEST(test_SplitPathAndFile_root_file);
   RUN_TEST(test_SplitPathAndFile_deep_path);
@@ -824,8 +723,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_SplitPathAndFile_null_empty);
   RUN_TEST(test_SplitPathAndFile_dir_only);
   RUN_TEST(test_SplitPathAndFile_glob_pattern);
-
-  // GetLeafName tests
   RUN_TEST(test_GetLeafName_simple_path);
   RUN_TEST(test_GetLeafName_deep_path);
   RUN_TEST(test_GetLeafName_root_file);
@@ -833,14 +730,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_GetLeafName_trailing_slash);
   RUN_TEST(test_GetLeafName_null);
   RUN_TEST(test_GetLeafName_only_slash);
-
-  // EqualsIgnoreCase tests
   RUN_TEST(test_EqualsIgnoreCase_identical);
   RUN_TEST(test_EqualsIgnoreCase_mixed_case);
   RUN_TEST(test_EqualsIgnoreCase_different_strings);
   RUN_TEST(test_EqualsIgnoreCase_empty_strings);
   RUN_TEST(test_EqualsIgnoreCase_null_inputs);
   RUN_TEST(test_EqualsIgnoreCase_one_empty);
-  
   return UNITY_END();
 }

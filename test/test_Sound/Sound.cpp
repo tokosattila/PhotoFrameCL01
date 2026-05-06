@@ -1,8 +1,3 @@
-/**
- * @file Sound.cpp
- * @brief Unit tests for sound helper logic (pure C++ logic, no hardware/I2S)
- */
-
 #include <unity.h>
 #include <cstdint>
 #include <cstddef>
@@ -43,6 +38,7 @@ static float SimulatePhaseWrap(uint16_t tFrequencyHz, uint16_t tDurationMs) {
     tPhase += tStep;
     if (tPhase >= (2.0f * kPi)) tPhase -= (2.0f * kPi);
   }
+
   return tPhase;
 }
 
@@ -74,6 +70,7 @@ void test_ComputeSequenceDurationMs_sums_duration_and_pause() {
     {880, 70, 35, 15},
     {1040, 90, 0, 15}
   };
+
   TEST_ASSERT_EQUAL_UINT32(190, ComputeSequenceDurationMs(kSound, sizeof(kSound) / sizeof(kSound[0])));
 }
 
@@ -105,11 +102,11 @@ void test_ApplyMasterVolume_clamps_scaled_value_to_100() {
 }
 
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
-
   RUN_TEST(test_ClampAmplitudePercent_limits_to_100);
   RUN_TEST(test_ComputeToneFrames_uses_integer_ms_math);
   RUN_TEST(test_ComputeSequenceDurationMs_sums_duration_and_pause);
@@ -118,6 +115,5 @@ int main(int argc, char **argv) {
   RUN_TEST(test_ClampVolumePercent_limits_to_100);
   RUN_TEST(test_ApplyMasterVolume_scales_to_40_percent);
   RUN_TEST(test_ApplyMasterVolume_clamps_scaled_value_to_100);
-
   return UNITY_END();
 }

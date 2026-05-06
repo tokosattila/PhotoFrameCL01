@@ -1,8 +1,3 @@
-/**
- * @file BootPartitionCommand.cpp
- * @brief Unit tests for bootpart command parsing (pure C++ logic)
- */
-
 #include <unity.h>
 #include <cstring>
 #include <cctype>
@@ -29,11 +24,9 @@ static int CiStrcmp(const char *a, const char *b) {
 static EBootPartArg ParseBootPartArg(const char *input) {
   const char *p = input ? input : "";
   while (*p == ' ' || *p == '\t') ++p;
-  while (*p != '\0' && *p != ' ' && *p != '\t') ++p; // skip command
+  while (*p != '\0' && *p != ' ' && *p != '\t') ++p;
   while (*p == ' ' || *p == '\t') ++p;
-
   if (*p == '\0') return EBootPartArg::Status;
-
   char arg[16] = "";
   const char *start = p;
   while (*p != '\0' && *p != ' ' && *p != '\t') ++p;
@@ -41,10 +34,8 @@ static EBootPartArg ParseBootPartArg(const char *input) {
   if (len == 0 || len >= sizeof(arg)) return EBootPartArg::Invalid;
   std::memcpy(arg, start, len);
   arg[len] = '\0';
-
   while (*p == ' ' || *p == '\t') ++p;
   if (*p != '\0') return EBootPartArg::TooManyArgs;
-
   if (CiStrcmp(arg, "status") == 0) return EBootPartArg::Status;
   if (CiStrcmp(arg, "ota0") == 0) return EBootPartArg::Ota0;
   if (CiStrcmp(arg, "ota1") == 0) return EBootPartArg::Ota1;
@@ -75,6 +66,7 @@ void test_invalid_and_too_many() {
 }
 
 void setUp(void) {}
+
 void tearDown(void) {}
 
 int main(int argc, char **argv) {

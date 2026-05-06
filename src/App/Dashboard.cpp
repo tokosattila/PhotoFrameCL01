@@ -664,6 +664,8 @@ namespace App {
     const uint32_t tRevisionMinor = static_cast<uint32_t>(tChipInfo.revision % 100);
     char tTemperatureText[24] = "0.0 °C";
     snprintf(tTemperatureText, sizeof(tTemperatureText), "%.1f °C", temperatureRead());
+    char tDisplayRotationText[16] = "0°";
+    snprintf(tDisplayRotationText, sizeof(tDisplayRotationText), "%u°", static_cast<unsigned>(tConfig.Display.Rotate));
     const uint32_t tTotalDram = heap_caps_get_total_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     const uint32_t tFreeDram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     const uint32_t tUsedDram = tTotalDram >= tFreeDram ? (tTotalDram - tFreeDram) : 0;
@@ -776,6 +778,8 @@ namespace App {
     tJson += "\",\"ValueSuffixKey\":\"entries\"}]},";
     tJson += "{\"LabelKey\":\"display\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"display_type\",\"ValueKey\":\"spectra6_eink\"},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"orientation\",\"ValueKey\":\"";
     tJson += tOrientationKey;
+    tJson += "\"},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"rotation\",\"Value\":\"";
+    tJson += EscapeJsonText(String(tDisplayRotationText));
     tJson += "\"}]},";
     tJson += "{\"LabelKey\":\"flash\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"flash_size\",\"Value\":\"";
     tJson += EscapeJsonText(String(tFlashSizeText));
@@ -2783,8 +2787,10 @@ namespace App {
       return;
     }
     Firmware_::Guard tFwLock;
-    char tJson[192] = "";
-    snprintf(tJson, sizeof(tJson), "{\"ok\":true,\"version\":\"%s\",\"ota_active\":%s,\"ota_written\":%u}", CFG.Get<SDeviceConfig>().Version.c_str(), FWU.IsActive() ? "true" : "false", (unsigned)FWU.GetWritten());
+    const unsigned tProgressPercent = FWU.GetTotal() > 0 ? static_cast<unsigned>((FWU.GetWritten() * 100U) / FWU.GetTotal()) : 0U;
+    const char *tLastMsg = FWU.GetLastMessage();
+    char tJson[320] = "";
+    snprintf(tJson, sizeof(tJson), "{\"ok\":true,\"version\":\"%s\",\"ota_active\":%s,\"ota_written\":%u,\"ota_progress\":%u,\"ota_error\":%s,\"ota_message\":\"%s\"}", CFG.Get<SDeviceConfig>().Version.c_str(), FWU.IsActive() ? "true" : "false", (unsigned)FWU.GetWritten(), tProgressPercent, FWU.HasError() ? "true" : "false", (tLastMsg && tLastMsg[0]) ? tLastMsg : "");
     DashboardUtils_::JsonResponse(tRequest, 200, tJson);
   }
 
