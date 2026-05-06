@@ -256,7 +256,7 @@ class Application {
       const bool tIsApMode = mCfg.Connection.ApModeEnable;
       DSP.SetFont(&OpenSans13B);
       DSP.SetColor(EDisplayColor::White);
-      snprintf(tTitleBuffer, sizeof(tTitleBuffer), "%s / MAINTENANCE [%s MODE]", mCfg.Device.Name.c_str(), (tIsApMode ? "AP" : "STA"));
+      snprintf(tTitleBuffer, sizeof(tTitleBuffer), "%s / MAINTENANCE [%s] MODE", mCfg.Device.Name.c_str(), (tIsApMode ? "AP" : "STA"));
       const SBoxBounds tTitleBoxBounds = DSP.WriteTextWithBoxCentered(tTitleBuffer, 12, 8, EDisplayColor::Red);
       const int32_t tInfoTextY = tTitleBoxBounds.YEndPos + 15;
       DSP.SetColor(EDisplayColor::Black);
