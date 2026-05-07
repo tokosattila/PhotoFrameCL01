@@ -42,9 +42,21 @@ class Application {
       if (psramFound()) heap_caps_malloc_extmem_enable(1024);
       if (!mMutex) mMutex = xSemaphoreCreateRecursiveMutex();
       if(!CFG.Init()) return;
-      mBootCount = CFG.IncrementBootCount();
       ReloadConfig();
       UTL.Init();
+      #if PRODUCTION
+        if (esp_reset_reason() == ESP_RST_DEEPSLEEP) {
+          const esp_sleep_wakeup_cause_t tWakeCause = esp_sleep_get_wakeup_cause();
+          const bool tAllowedWakeCause = (tWakeCause == ESP_SLEEP_WAKEUP_TIMER) || (tWakeCause == ESP_SLEEP_WAKEUP_EXT1);
+          if (!tAllowedWakeCause) {
+            xLOG("Ignoring non-scheduled wakeup, cause=%d", static_cast<int>(tWakeCause));
+            UTL.SleepAndWakeup();
+            return;
+          }
+        }
+      #endif
+      mBootCount = CFG.IncrementBootCount();
+      const uint8_t tSettingPin = static_cast<uint8_t>(mCfg.Device.SettingPin);
       UTL.SetCPUFrequency(ECPUFrequency::F160MHz);
       #if !PRODUCTION
         { 
@@ -89,7 +101,6 @@ class Application {
           sButtonTaskStarted = true;
         }
       #endif  
-      const uint8_t tSettingPin = static_cast<uint8_t>(mCfg.Device.SettingPin);
       #if PRODUCTION
         if (IsSettingButtonHeld(tSettingPin) || UTL.WasWokenByPin(tSettingPin)) MaintenanceMode();
         else PhotoFrameMode();
@@ -176,6 +187,10 @@ class Application {
       STG.Init(true);
       LGM.Init();
       LGM.Boot(UTL.ResolveBootReason(), "PHOTO_FRAME", mCfg.Device.Version.c_str(), mBootCount);
+      if (BAT.IsAvailable() && BAT.IsBatteryConnected()) {
+        const char *tBatteryState = BAT.IsCharging() ? "usb_charging" : (BAT.IsUsbPowerPresent() ? "usb_power" : "battery");
+        LGM.Battery(BAT.GetPercentage(), BAT.GetVoltage(), tBatteryState);
+      } else LGM.Battery(0, 0, "no_battery");
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       const char *tImage = mCfg.Display.CurrentFile.isEmpty() ? STG.GetNextFile("")  : mCfg.Display.CurrentFile.c_str();
@@ -215,6 +230,10 @@ class Application {
       STG.Init(true);
       LGM.Init();
       LGM.Boot(UTL.ResolveBootReason(), "MAINTENANCE", mCfg.Device.Version.c_str(), mBootCount);
+      if (BAT.IsAvailable() && BAT.IsBatteryConnected()) {
+        const char *tBatteryState = BAT.IsCharging() ? "usb_charging" : (BAT.IsUsbPowerPresent() ? "usb_power" : "battery");
+        LGM.Battery(BAT.GetPercentage(), BAT.GetVoltage(), tBatteryState);
+      } else LGM.Battery(0, 0, "no_battery");
       DSP.Init();
       DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
       if (!sButtonTaskStarted) {

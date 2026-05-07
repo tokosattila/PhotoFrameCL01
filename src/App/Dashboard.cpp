@@ -607,6 +607,7 @@ namespace App {
 
   void Dashboard_::AppendIndexDataJson(String &tJson, const SAppConfig &tConfig, const String &tStorageDefaultKey, const String &tImagesDirectory, const String &tImageExtension, uint64_t tSdUsedBytes, uint64_t tSdTotalBytes, uint64_t tLfsUsedBytes, uint64_t tLfsTotalBytes) {
     bool tFirstStorage = true;
+    const bool tDefaultStorageAvailable = IsStorageAvailableByKey(tStorageDefaultKey);
     tJson += "\"Storages\":[";
     for (uint8_t tStorageIndex = 0; tStorageIndex < 2; tStorageIndex++) {
       const String tStorageKey = tStorageIndex == 0 ? String("sd_card") : String("littlefs");
@@ -623,7 +624,7 @@ namespace App {
       tJson += "{\"Name\":\"";
       tJson += tStorageKey;
       tJson += "\",\"Fallback\":\"";
-      tJson += (tStorageKey == tStorageDefaultKey) ? "false" : "true";
+      tJson += (tStorageKey == tStorageDefaultKey || !tDefaultStorageAvailable) ? "false" : "true";
       tJson += "\",\"TotalSize\":\"";
       tJson += tTotalText;
       tJson += "\",\"UsedSize\":\"";
@@ -643,7 +644,8 @@ namespace App {
         tJson += "\",\"Size\":\"";
         tJson += EscapeJsonText(String(tReadableSize));
         tJson += "\",\"Default\":";
-        tJson += (tStorageKey == tStorageDefaultKey && tConfig.Display.CurrentFile == String(tFileName)) ? "true" : "false";
+        const bool tIsEffectivePrimary = (tStorageKey == tStorageDefaultKey) || !tDefaultStorageAvailable;
+        tJson += (tIsEffectivePrimary && tConfig.Display.CurrentFile == String(tFileName)) ? "true" : "false";
         tJson += ",\"Preview\":\"/api/images/thumbs/";
         tJson += EscapeJsonText(String(tFileName));
         tJson += "?storage=";

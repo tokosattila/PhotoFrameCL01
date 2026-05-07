@@ -446,7 +446,17 @@ namespace App {
       case ESP_RST_INT_WDT: return "INT_WDT";
       case ESP_RST_TASK_WDT: return "TASK_WDT";
       case ESP_RST_WDT: return "WDT";
-      case ESP_RST_DEEPSLEEP: return "TIMER_WAKEUP";
+      case ESP_RST_DEEPSLEEP: {
+        switch (esp_sleep_get_wakeup_cause()) {
+          case ESP_SLEEP_WAKEUP_TIMER: return "TIMER_WAKEUP";
+          case ESP_SLEEP_WAKEUP_EXT0: return "EXT0_WAKEUP";
+          case ESP_SLEEP_WAKEUP_EXT1: return "EXT1_WAKEUP";
+          case ESP_SLEEP_WAKEUP_GPIO: return "GPIO_WAKEUP";
+          case ESP_SLEEP_WAKEUP_TOUCHPAD: return "TOUCH_WAKEUP";
+          case ESP_SLEEP_WAKEUP_ULP: return "ULP_WAKEUP";
+          default: return "DEEPSLEEP_WAKEUP";
+        }
+      }
       case ESP_RST_BROWNOUT: return "BROWNOUT";
       case ESP_RST_SDIO: return "SDIO";
       default: return "UNKNOWN";
@@ -528,11 +538,13 @@ namespace App {
     xLOG("Going to deep sleep...");
     xLOG("Wake-up → hour%02u:00", tHour);
     xLOG("Next wake-up → %llu %s\n\n", tDisplay, tUnit);
-    const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
     const uint8_t tWakePin = static_cast<uint8_t>(mCfg.Device.SettingPin);
+#if !PRODUCTION
+    const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tNextImgPin));
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(tNextImgPin));
     esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(tNextImgPin), 0);
+#endif
     const uint64_t tWakeMask = (1ULL << tWakePin);
     rtc_gpio_pullup_dis(static_cast<gpio_num_t>(tWakePin));
     rtc_gpio_pulldown_en(static_cast<gpio_num_t>(tWakePin));

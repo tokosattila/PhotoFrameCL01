@@ -61,6 +61,36 @@ bool WasWokenByPin(uint32_t tWakeCause, uint64_t tWakeStatus, uint8_t tPin) {
   return (tWakeStatus & (1ULL << tPin)) != 0;
 }
 
+enum class EResetReason : uint8_t {
+  PowerOn = 0,
+  Ext,
+  Sw,
+  Panic,
+  IntWdt,
+  TaskWdt,
+  Wdt,
+  DeepSleep,
+  Brownout,
+  Sdio,
+  Unknown
+};
+
+const char *ResolveBootReason(EResetReason tReason) {
+  switch (tReason) {
+    case EResetReason::PowerOn: return "POWER_ON";
+    case EResetReason::Ext: return "EXT_PIN";
+    case EResetReason::Sw: return "SOFTWARE";
+    case EResetReason::Panic: return "PANIC";
+    case EResetReason::IntWdt: return "INT_WDT";
+    case EResetReason::TaskWdt: return "TASK_WDT";
+    case EResetReason::Wdt: return "WDT";
+    case EResetReason::DeepSleep: return "TIMER_WAKEUP";
+    case EResetReason::Brownout: return "BROWNOUT";
+    case EResetReason::Sdio: return "SDIO";
+    default: return "UNKNOWN";
+  }
+}
+
 std::string NormalizeDashboardLanguageCode(const std::string &tLanguage) {
   std::string tNormalized = tLanguage;
   for (char &tChar : tNormalized) tChar = static_cast<char>(tolower(static_cast<unsigned char>(tChar)));
@@ -222,6 +252,23 @@ void test_WasWokenByPin_ext1_but_other_pin() {
 void test_WasWokenByPin_non_ext1_cause() {
   TEST_ASSERT_FALSE(WasWokenByPin(0, (1ULL << 4), 4));
   TEST_ASSERT_FALSE(WasWokenByPin(4, (1ULL << 5), 5));
+}
+
+void test_ResolveBootReason_known_values() {
+  TEST_ASSERT_EQUAL_STRING("POWER_ON", ResolveBootReason(EResetReason::PowerOn));
+  TEST_ASSERT_EQUAL_STRING("EXT_PIN", ResolveBootReason(EResetReason::Ext));
+  TEST_ASSERT_EQUAL_STRING("SOFTWARE", ResolveBootReason(EResetReason::Sw));
+  TEST_ASSERT_EQUAL_STRING("PANIC", ResolveBootReason(EResetReason::Panic));
+  TEST_ASSERT_EQUAL_STRING("INT_WDT", ResolveBootReason(EResetReason::IntWdt));
+  TEST_ASSERT_EQUAL_STRING("TASK_WDT", ResolveBootReason(EResetReason::TaskWdt));
+  TEST_ASSERT_EQUAL_STRING("WDT", ResolveBootReason(EResetReason::Wdt));
+  TEST_ASSERT_EQUAL_STRING("TIMER_WAKEUP", ResolveBootReason(EResetReason::DeepSleep));
+  TEST_ASSERT_EQUAL_STRING("BROWNOUT", ResolveBootReason(EResetReason::Brownout));
+  TEST_ASSERT_EQUAL_STRING("SDIO", ResolveBootReason(EResetReason::Sdio));
+}
+
+void test_ResolveBootReason_unknown_value() {
+  TEST_ASSERT_EQUAL_STRING("UNKNOWN", ResolveBootReason(EResetReason::Unknown));
 }
 
 static const unsigned long SECONDS_PER_MINUTE = 60;
@@ -684,6 +731,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_WasWokenByPin_ext1_and_matching_pin);
   RUN_TEST(test_WasWokenByPin_ext1_but_other_pin);
   RUN_TEST(test_WasWokenByPin_non_ext1_cause);
+  RUN_TEST(test_ResolveBootReason_known_values);
+  RUN_TEST(test_ResolveBootReason_unknown_value);
   RUN_TEST(test_EpochToReadableDuration_zero);
   RUN_TEST(test_EpochToReadableDuration_seconds);
   RUN_TEST(test_EpochToReadableDuration_minutes);
