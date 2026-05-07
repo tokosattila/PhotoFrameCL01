@@ -9,17 +9,15 @@ The project is designed around three goals:
 2. Reliable maintenance workflows through a built-in web dashboard.
 3. Robust field operation with NVS-backed configuration, dual OTA partitions, and storage fallback.
 
-## 1. Photo Gallery
+## 1. Photo & Video
 
-| <img src="docs/images/pic01.jpg" width="240px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="240px" alt="Photo Frame Hardware" /> | <img src="docs/images/pic03.jpg" width="240px" alt="Photo Frame Back Side" /> |
-|:---:|:---:|:---:|
-| *Photo frame in operation* | *Hardware back side* | *Back cover installed* |
+| <img src="docs/images/pic01.jpg" width="240px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="240px" alt="Photo Frame Hardware" /> |
+|:---:|:---:|
+| *Photo frame in operation* | *Hardware back side* |
 
-## 2. Video
-
-| <a href="docs/videos/dashboard.mp4"><img src="docs/images/pic04.jpg" alt="Dashboard" width="1160px" /></a> |
-|:---:|
-| *Dashboard demo* |
+| <img src="docs/images/pic03.jpg" width="240px" alt="Photo Frame Back Side" /> | <a href="docs/videos/video.mp4"><img src="docs/images/pic04.jpg" alt="Dashboard" width="1160px" /></a> |
+|:---:|:---:|
+| *Back cover installed* | *Dashboard video* |
 
 ## 3. Hardware
 
