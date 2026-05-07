@@ -11,11 +11,11 @@ The project is designed around three goals:
 
 ## 1. Photo & Video
 
-| <img src="docs/images/pic01.jpg" width="380px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="380px" alt="Photo Frame Hardware" /> |
+| <img src="docs/images/pic01.jpg" width="390px" alt="Photo Frame Display" /> | <img src="docs/images/pic02.jpg" width="390px" alt="Photo Frame Hardware" /> |
 |:---:|:---:|
 | *Photo frame in operation* | *Hardware back side* |
 
-| <img src="docs/images/pic03.jpg" width="380px" alt="Photo Frame Back Side" /> | <a href="docs/videos/video.mp4"><img src="docs/images/pic04.jpg" alt="Dashboard" width="380px" /></a> |
+| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | <a href="docs/videos/video.mp4"><img src="docs/images/pic04.jpg" alt="Dashboard" width="390px" /></a> |
 |:---:|:---:|
 | *Back cover installed* | *Dashboard video* |
 
