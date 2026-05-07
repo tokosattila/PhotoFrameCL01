@@ -47,7 +47,7 @@ class Application {
       #if PRODUCTION
         if (esp_reset_reason() == ESP_RST_DEEPSLEEP) {
           const esp_sleep_wakeup_cause_t tWakeCause = esp_sleep_get_wakeup_cause();
-          const bool tAllowedWakeCause = (tWakeCause == ESP_SLEEP_WAKEUP_TIMER) || (tWakeCause == ESP_SLEEP_WAKEUP_EXT1);
+          const bool tAllowedWakeCause = (tWakeCause == ESP_SLEEP_WAKEUP_TIMER) || (tWakeCause == ESP_SLEEP_WAKEUP_EXT1) || (tWakeCause == ESP_SLEEP_WAKEUP_EXT0);
           if (!tAllowedWakeCause) {
             xLOG("Ignoring non-scheduled wakeup, cause=%d", static_cast<int>(tWakeCause));
             UTL.SleepAndWakeup();

@@ -539,12 +539,10 @@ namespace App {
     xLOG("Wake-up → hour%02u:00", tHour);
     xLOG("Next wake-up → %llu %s\n\n", tDisplay, tUnit);
     const uint8_t tWakePin = static_cast<uint8_t>(mCfg.Device.SettingPin);
-#if !PRODUCTION
     const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tNextImgPin));
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(tNextImgPin));
     esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(tNextImgPin), 0);
-#endif
     const uint64_t tWakeMask = (1ULL << tWakePin);
     rtc_gpio_pullup_dis(static_cast<gpio_num_t>(tWakePin));
     rtc_gpio_pulldown_en(static_cast<gpio_num_t>(tWakePin));

@@ -303,7 +303,7 @@ namespace App {
 
   constexpr uint16_t DISPLAY_WIDTH = 800;
   constexpr uint16_t DISPLAY_HEIGHT = 480;
-  constexpr uint16_t DISPLAY_ROTATE = 0;
+  constexpr uint16_t DISPLAY_ROTATE = 180;
   constexpr const char *IMAGE_EXT = ".jpg";
 
   constexpr uint16_t DASHBOARD_IMG_WIDTH = DISPLAY_WIDTH;
