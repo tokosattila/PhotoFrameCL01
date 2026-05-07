@@ -21,6 +21,8 @@ The project is designed around three goals:
 
 ## 3. Hardware
 
+<video src="https://github.com/tokosattila/PhotoFrameCL01/raw/main/docs/videos/video.mp4" width="390px" controls></video>
+
 <table width="100%">
 <tr>
 <td align="center" style="padding:10px!important">
