@@ -15,7 +15,7 @@ The project is designed around three goals:
 |:---:|:---:|
 | *Photo frame in operation* | *Hardware back side* |
 
-| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | <video src="https://github.com/user-attachments/assets/XXXXXX" controls width="390px"></video> |
+| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | <video src="docs/videos/video.mp4" controls width="390px"></video> |
 |:---:|:---:|
 | *Back cover installed* | *Dashboard video* |
 
