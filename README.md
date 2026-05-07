@@ -15,7 +15,7 @@ The project is designed around three goals:
 |:---:|:---:|
 | *Photo frame in operation* | *Hardware back side* |
 
-| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | [https://raw.githubusercontent.com/tokosattila/PhotoFrameCL01/main/docs/videos/video.mp4](https://raw.githubusercontent.com/tokosattila/PhotoFrameCL01/main/docs/videos/video.mp4) |
+| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | https://github.com/user-attachments/assets/76fc9947-8c29-450a-8fff-99deb275520e |
 |:---:|:---:|
 | *Back cover installed* | *Dashboard video* |
 
