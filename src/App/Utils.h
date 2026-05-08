@@ -5,6 +5,8 @@
 
 namespace App {
 
+  enum class EDisplayRotate : uint16_t;
+
   enum class EUtilsInfoType : uint8_t { 
     Header = 1, 
     Title, 
@@ -44,6 +46,7 @@ namespace App {
       static bool SecureStrcmp(const char *tA, const char *tB);
       static const char *GetLeafName(const char *tPath);
       static bool EqualsIgnoreCase(const char *tLeft, const char *tRight);
+      static EDisplayRotate ResolveDisplayRotate(uint16_t tRotate);
       static uint32_t SafeAtoul(const char *tStr, uint32_t tMinVal, uint32_t tMaxVal, uint32_t tDefaultVal);
       static bool HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs);
     private:

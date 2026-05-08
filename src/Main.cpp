@@ -147,21 +147,6 @@ class Application {
       mCfg = CFG.Get<SAppConfig>();
     }
 
-    static EDisplayRotate ResolveDisplayRotate(uint16_t tRotate) {
-      switch (tRotate) {
-        case 0:
-          return EDisplayRotate::Rotate0;
-        case 90:
-          return EDisplayRotate::Rotate90;
-        case 180:
-          return EDisplayRotate::Rotate180;
-        case 270:
-          return EDisplayRotate::Rotate270;
-        default:
-          return static_cast<EDisplayRotate>(DISPLAY_ROTATE);
-      }
-    }
-
     void ShowDefaultImage() {
       DSP.PrintImage(0, 0, DefaultImageWidth, DefaultImageHeight, DefaultImage);
       DSP.Update();
@@ -192,7 +177,7 @@ class Application {
         LGM.Battery(BAT.GetPercentage(), BAT.GetVoltage(), tBatteryState);
       } else LGM.Battery(0, 0, "no_battery");
       DSP.Init();
-      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
+      DSP.SetRotate(UTL.ResolveDisplayRotate(mCfg.Display.Rotate));
       const char *tImage = mCfg.Display.CurrentFile.isEmpty() ? STG.GetNextFile("")  : mCfg.Display.CurrentFile.c_str();
       if (TryDisplayImage(tImage)) SaveNextImage(STG.GetNextFile(tImage));
       else {
@@ -235,7 +220,7 @@ class Application {
         LGM.Battery(BAT.GetPercentage(), BAT.GetVoltage(), tBatteryState);
       } else LGM.Battery(0, 0, "no_battery");
       DSP.Init();
-      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
+      DSP.SetRotate(UTL.ResolveDisplayRotate(mCfg.Display.Rotate));
       if (!sButtonTaskStarted) {
         BTN.AddPin(mCfg.Device.ResetPin, "[reset button]", true);
         BTN.AddPin(mCfg.Device.SettingPin, "[settings button]", false);
@@ -351,7 +336,7 @@ class Application {
       LED.Off(mCfg.Device.ActLedPin);
       UTL.PrintInfo("Device starts in Low Battery Mode", EUtilsInfoType::Single);
       DSP.Init();
-      DSP.SetRotate(ResolveDisplayRotate(mCfg.Display.Rotate));
+      DSP.SetRotate(UTL.ResolveDisplayRotate(mCfg.Display.Rotate));
       char tBuffer[32];
       const int32_t tCanvasWidth = DSP.GetCanvasWidth();
       const int32_t tCanvasHeight = DSP.GetCanvasHeight();

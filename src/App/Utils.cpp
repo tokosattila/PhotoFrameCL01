@@ -57,6 +57,21 @@ namespace App {
     return *tL == '\0' && *tR == '\0';
   }
 
+  EDisplayRotate Utils_::ResolveDisplayRotate(uint16_t tRotate) {
+    switch (tRotate) {
+      case 0:
+        return EDisplayRotate::Rotate0;
+      case 90:
+        return EDisplayRotate::Rotate90;
+      case 180:
+        return EDisplayRotate::Rotate180;
+      case 270:
+        return EDisplayRotate::Rotate270;
+      default:
+        return static_cast<EDisplayRotate>(DISPLAY_ROTATE);
+    }
+  }
+
   uint32_t Utils_::SafeAtoul(const char *tStr, uint32_t tMinVal, uint32_t tMaxVal, uint32_t tDefaultVal) {
     if (!tStr || *tStr == '\0' || *tStr == ' ' || *tStr == '\t') return tDefaultVal;
     char *tEndPtr = nullptr;
