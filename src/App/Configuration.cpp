@@ -3,6 +3,24 @@
 
 namespace App {
 
+  static uint8_t DecodeWakeUpModeFromStorage(uint8_t tStoredWakeUp, ETimerWakeUp tDefaultWakeUp) {
+    const uint8_t tLegacyMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes) + 1;
+    const uint8_t tLegacyMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly) + 1;
+    if (tStoredWakeUp >= tLegacyMinMode && tStoredWakeUp <= tLegacyMaxMode) return static_cast<uint8_t>(tStoredWakeUp - 1);
+    if (tStoredWakeUp == static_cast<uint8_t>(ETimerWakeUp::Minutes)) return static_cast<uint8_t>(ETimerWakeUp::Minutes);
+    return static_cast<uint8_t>(tDefaultWakeUp);
+  }
+
+  static uint8_t EncodeWakeUpModeForStorage(ETimerWakeUp tWakeUp) {
+    const uint8_t tMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes);
+    const uint8_t tMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly);
+    const uint8_t tRawMode = static_cast<uint8_t>(tWakeUp);
+    const uint8_t tNormalizedMode = (tRawMode < tMinMode || tRawMode > tMaxMode)
+      ? static_cast<uint8_t>(ETimerWakeUp::Daily)
+      : tRawMode;
+    return static_cast<uint8_t>(tNormalizedMode + 1);
+  }
+
   Configuration_ &Configuration_::Instance() {
     static Configuration_ tInstance;
     return tInstance;
@@ -313,7 +331,8 @@ namespace App {
     const SAppConfig tDefaultConfig = GetDefaultConfig();
     STimerConfig tCfg = tDefaultConfig.Timer;
     AccessConfig(true, [&]() {
-      tCfg.WakeUp = static_cast<ETimerWakeUp>(mConfig.getUChar(kNvsTimerWake, static_cast<uint8_t>(tDefaultConfig.Timer.WakeUp)));
+      const uint8_t tStoredWakeUp = mConfig.getUChar(kNvsTimerWake, EncodeWakeUpModeForStorage(tDefaultConfig.Timer.WakeUp));
+      tCfg.WakeUp = static_cast<ETimerWakeUp>(DecodeWakeUpModeFromStorage(tStoredWakeUp, tDefaultConfig.Timer.WakeUp));
       tCfg.WakeUpHour = mConfig.getUChar(kNvsTimerWakeHour, tDefaultConfig.Timer.WakeUpHour);
     });
     return tCfg;
@@ -491,7 +510,7 @@ namespace App {
       tPutString(kNvsConStaDns2, tConfig.Connection.StaSecondaryDns);
       tPutBool(kNvsConMdnsEnable, mConfig.putBool(kNvsConMdnsEnable, tConfig.Connection.MdnsEnable));
       tPutString(kNvsConMdnsName, tConfig.Connection.MdnsName);
-      tPutBool(kNvsTimerWake, mConfig.putUChar(kNvsTimerWake, static_cast<uint8_t>(tConfig.Timer.WakeUp)));
+      tPutBool(kNvsTimerWake, mConfig.putUChar(kNvsTimerWake, EncodeWakeUpModeForStorage(tConfig.Timer.WakeUp)));
       tPutBool(kNvsTimerWakeHour, mConfig.putUChar(kNvsTimerWakeHour, tConfig.Timer.WakeUpHour));
       tPutBool(kNvsStgDefaultFs, mConfig.putUChar(kNvsStgDefaultFs, static_cast<uint8_t>(tConfig.Storage.DefaultFileSystem)));
       tPutBool(kNvsStgFallback, mConfig.putBool(kNvsStgFallback, tConfig.Storage.FallbackEnabled));

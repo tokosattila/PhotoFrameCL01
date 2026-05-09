@@ -124,8 +124,7 @@ namespace App {
   };
 
   enum class ETimerWakeUp : uint8_t {
-    Seconds = 1,
-    Minutes,
+    Minutes = 1,
     Hourly,
     HalfDay,
     Daily,

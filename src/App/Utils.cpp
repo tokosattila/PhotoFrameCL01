@@ -507,9 +507,6 @@ namespace App {
     uint64_t tDelaySec = 0;
     uint8_t tHour = mCfg.Timer.WakeUpHour % 24;
     switch (mCfg.Timer.WakeUp) {
-      case ETimerWakeUp::Seconds:
-        tDelaySec = 10;
-        break;
       case ETimerWakeUp::Minutes:
         tDelaySec = SECONDS_PER_MINUTE;
         break;

@@ -139,6 +139,14 @@ namespace App {
     return tNormalized == "1" || tNormalized == "true" || tNormalized == "on" || tNormalized == "yes";
   }
 
+  static ETimerWakeUp NormalizeWakeUpMode(int32_t tRawMode, ETimerWakeUp tDefaultMode) {
+    const uint8_t tMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes);
+    const uint8_t tMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly);
+    if (tRawMode == static_cast<int32_t>(tMaxMode + 1)) return ETimerWakeUp::Monthly;
+    if (tRawMode < static_cast<int32_t>(tMinMode) || tRawMode > static_cast<int32_t>(tMaxMode)) return tDefaultMode;
+    return static_cast<ETimerWakeUp>(static_cast<uint8_t>(tRawMode));
+  }
+
   bool Dashboard_::TryGetRequestValue(AsyncWebServerRequest *tRequest, const char *tKey, String &tValue) {
     if (!tRequest || !tKey || !tKey[0]) return false;
     if (tRequest->hasParam(tKey, true)) {
@@ -2210,7 +2218,7 @@ namespace App {
     }
     SAppConfig tConfig = CFG.Get<SAppConfig>();
     String tValue;
-    if (TryGetRequestValue(tRequest, "wakeup[interval]", tValue)) tConfig.Timer.WakeUp = static_cast<ETimerWakeUp>(tValue.toInt());
+    if (TryGetRequestValue(tRequest, "wakeup[interval]", tValue)) tConfig.Timer.WakeUp = NormalizeWakeUpMode(tValue.toInt(), tConfig.Timer.WakeUp);
     if (TryGetRequestValue(tRequest, "wakeup[hour]", tValue)) tConfig.Timer.WakeUpHour = static_cast<uint8_t>(constrain(tValue.toInt(), 0, 23));
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, "wakeup_save_error");
@@ -2270,7 +2278,7 @@ namespace App {
     }
     if (tHasParameter("ntp.auto_sync_enabled")) tConfig.Ntp.LowPowerSyncEnable = tGetParameter("ntp.auto_sync_enabled") == "1";
     tConfig.Ntp.LowPowerSyncIntervalSec = NormalizeAutoSyncIntervalSec(tConfig.Ntp.LowPowerSyncIntervalSec, tConfig.Ntp.LowPowerSyncEnable);
-    if (tHasParameter("timer.wake_up")) tConfig.Timer.WakeUp = static_cast<ETimerWakeUp>(tGetParameter("timer.wake_up").toInt());
+    if (tHasParameter("timer.wake_up")) tConfig.Timer.WakeUp = NormalizeWakeUpMode(tGetParameter("timer.wake_up").toInt(), tConfig.Timer.WakeUp);
     if (tHasParameter("timer.wake_hour")) tConfig.Timer.WakeUpHour = static_cast<uint8_t>(tGetParameter("timer.wake_hour").toInt());
     if (tHasParameter("dashboard.user")) tConfig.Dashboard.User = tGetParameter("dashboard.user");
     if (tHasParameter("dashboard.language")) {
