@@ -113,7 +113,7 @@ namespace App {
         if (!IsPacketValid(mPacketBuffer)) tPacketSize = 0;
       }
       if (++tTimeoutCounter > 200) {
-        xLOG("NTP timeout, no response");
+        xLOG("Timeout, no response");
         mCurrentEpoch = 0;
         return false;
       }
@@ -311,10 +311,10 @@ namespace App {
       xLOG("System time synchronized from NTP");
       char tDate[32];
       GetDate(tDate, sizeof(tDate));
-      xLOG("Current date: %s", tDate);
+      xLOG("Current date → %s", tDate);
       char tTime[9];
       GetTime(tTime, sizeof(tTime));
-      xLOG("Current time: %s", tTime);
+      xLOG("Current time → %s", tTime);
     } else xLOG("System time failed synchronized from NTP");
     return tSuccess;
   }

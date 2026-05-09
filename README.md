@@ -2,7 +2,7 @@
 
 Color e-ink digital photo frame with image management and configuration via a built-in web dashboard. Features deep sleep scheduling with RTC backup, dual OTA firmware update slots, and NVS-backed configuration for extended autonomous operation.
 
-> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
+> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git) (**Telnet + FTP** based), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git) (**Telnet + FTP** based).
 
 The project is designed around three goals:
 1. Low-power autonomous image display with deep sleep.
@@ -33,7 +33,7 @@ The project is designed around three goals:
 | **Flash** | 16MB |
 | **PSRAM** | 8MB |
 | **RTC** | PCF8563 I2C RTC chip |
-| **Storage** | SD Card SPI |
+| **Storage** | SD Card SPI + LittleFS |
 | **Audio** | ES8611 I2S DAC audio encoder chip |
 | **Battery** | AXP2101 PMU I2C Li-Ion battery management |
 

@@ -294,6 +294,8 @@ namespace App {
 
   constexpr unsigned long BAUDRATE = 115200;
 
+  constexpr const char *LOGS_DIR = "logs";
+
   constexpr const char *IMAGES_DIR = "images";
   constexpr const char *FIRMWARE_FILENAME = "firmware.bin";
 

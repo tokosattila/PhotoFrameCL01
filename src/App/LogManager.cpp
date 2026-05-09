@@ -253,8 +253,8 @@ namespace App {
     struct tm tTm = {};
     if (tNow >= 1000000000L) localtime_r(&tNow, &tTm);
     else memset(&tTm, 0, sizeof(tTm));
-    if (tRollIndex == 0) snprintf(tPath, tSize, "%s/%04d/%02d/%02d/%04d%02d%02d.log", kLogsRoot, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday);
-    else snprintf(tPath, tSize, "%s/%04d/%02d/%02d/%04d%02d%02d_%u.log", kLogsRoot, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, (unsigned)tRollIndex);
+    if (tRollIndex == 0) snprintf(tPath, tSize, "/%s/%04d/%02d/%02d/%04d%02d%02d.log", kLogsRoot, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday);
+    else snprintf(tPath, tSize, "/%s/%04d/%02d/%02d/%04d%02d%02d_%u.log", kLogsRoot, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, tTm.tm_year + 1900, tTm.tm_mon + 1, tTm.tm_mday, (unsigned)tRollIndex);
     return true;
   }
 
@@ -303,7 +303,7 @@ namespace App {
     }
     File tFile = STG.OpenFile(mCurrentFilePath, FILE_APPEND, true);
     if (!tFile) {
-      xLOG("Log file open for append failed: %s", mCurrentFilePath);
+      xLOG("Log file open for append failed → %s", mCurrentFilePath);
       mWriteBufferPos = 0;
       return;
     }

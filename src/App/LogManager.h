@@ -52,10 +52,10 @@ namespace App {
       static void Lock();
       static void Unlock();
       mutable SemaphoreHandle_t mMutex = nullptr;
-      static constexpr const char *kLogsRoot = "/logs";
+      static constexpr const char *kLogsRoot = LOGS_DIR;
       static constexpr size_t kLineBufferSize = 192;
       static constexpr size_t kWriteBufferSize = 4 * 1024;
-      static constexpr size_t kMaxDayFileSizeBytes = 512UL * 1024UL;
+      static constexpr size_t kMaxDayFileSizeBytes = 512 * 1024;
       static constexpr uint8_t kMaxDailyFileRollIndex = 10;
       bool mInitialized = false;
       bool mEnabled = true;

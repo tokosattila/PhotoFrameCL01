@@ -304,26 +304,94 @@ namespace App {
   }
 
   void LittleFS_::PrintListDir(size_t tMaxLines) {
+    (void)tMaxLines;
     xLOG_PL();
     UTL.PrintInfo("LITTLEFS FILE STRUCTURE", EUtilsInfoType::Header);
     UTL.PrintInfo("", EUtilsInfoType::Line);
-    const char *tData = ListDir("/");
-    char *tLine = (char*)tData;
-    char *tEnd = (char*)tData + mListPos;
-    size_t tPrintedLines = 0;
-    while (tLine < tEnd) {
-      if (tPrintedLines >= tMaxLines) {
-        UTL.PrintInfo("...", EUtilsInfoType::Cell);
-        break;
-      }
-      char *tNext = tLine;
-      while (tNext < tEnd && *tNext != '\r' && *tNext != '\n') ++tNext;
-      char tTemp = *tNext; *tNext = '\0';
-      UTL.PrintInfo(tLine, EUtilsInfoType::Cell);
-      ++tPrintedLines;
-      if (tTemp) *tNext = tTemp;
-      tLine = tNext + (tTemp ? (tTemp == '\r' && tNext[1] == '\n' ? 2 : 1) : 0);
+    static constexpr uint8_t kMaxSubDirFiles = 10;
+    File tRoot = LittleFS.open("/");
+    if (!tRoot || !tRoot.isDirectory()) {
+      UTL.PrintInfo("Invalid root", EUtilsInfoType::Cell);
+      UTL.PrintInfo("", EUtilsInfoType::Footer);
+      return;
     }
+    std::function<void(File &, uint8_t)> tPrintLogsTree;
+    tPrintLogsTree = [&](File &tDir, uint8_t tDepth) {
+      char tIndent[64] = "";
+      size_t tIndentLen = (size_t)(tDepth + 1U) * 2U;
+      if (tIndentLen > sizeof(tIndent) - 1U) tIndentLen = sizeof(tIndent) - 1U;
+      memset(tIndent, ' ', tIndentLen);
+      tIndent[tIndentLen] = '\0';
+      File tEntry = tDir.openNextFile();
+      while (tEntry) {
+        const char *tName = GetFileName(tEntry.name());
+        if (tEntry.isDirectory()) {
+          char tLine[160] = "";
+          snprintf(tLine, sizeof(tLine), "%s%s/", tIndent, tName);
+          UTL.PrintInfo(tLine, EUtilsInfoType::Cell);
+          File tSubDir = tEntry;
+          tPrintLogsTree(tSubDir, (uint8_t)(tDepth + 1));
+          tSubDir.close();
+        } else {
+          char tSize[16] = "";
+          UTL.ByteToReadableSize((uint64_t)tEntry.size(), tSize, sizeof(tSize));
+          char tLine[192] = "";
+          snprintf(tLine, sizeof(tLine), "%s%s [%s]", tIndent, tName, tSize);
+          UTL.PrintInfo(tLine, EUtilsInfoType::Cell);
+        }
+        File tNext = tDir.openNextFile();
+        tEntry.close();
+        tEntry = tNext;
+      }
+    };
+    File tEntry = tRoot.openNextFile();
+    while (tEntry) {
+      const char *tName = GetFileName(tEntry.name());
+      if (tEntry.isDirectory()) {
+        char tDirLine[160] = "";
+        snprintf(tDirLine, sizeof(tDirLine), "%s/", tName);
+        UTL.PrintInfo(tDirLine, EUtilsInfoType::Cell);
+        if (strcmp(tName, "logs") == 0) {
+          File tLogsDir = tEntry;
+          tPrintLogsTree(tLogsDir, 0);
+          tLogsDir.close();
+        } else {
+          File tSubDir = tEntry;
+          uint8_t tFileCount = 0;
+          bool tTruncated = false;
+          File tSubEntry = tSubDir.openNextFile();
+          while (tSubEntry) {
+            if (!tSubEntry.isDirectory()) {
+              if (tFileCount < kMaxSubDirFiles) {
+                char tSize[16] = "";
+                UTL.ByteToReadableSize((uint64_t)tSubEntry.size(), tSize, sizeof(tSize));
+                char tFileLine[192] = "";
+                snprintf(tFileLine, sizeof(tFileLine), "  %s [%s]", GetFileName(tSubEntry.name()), tSize);
+                UTL.PrintInfo(tFileLine, EUtilsInfoType::Cell);
+                ++tFileCount;
+              } else {
+                tTruncated = true;
+              }
+            }
+            File tNextSub = tSubDir.openNextFile();
+            tSubEntry.close();
+            tSubEntry = tNextSub;
+          }
+          if (tTruncated) UTL.PrintInfo("  [...]", EUtilsInfoType::Cell);
+          tSubDir.close();
+        }
+      } else {
+        char tSize[16] = "";
+        UTL.ByteToReadableSize((uint64_t)tEntry.size(), tSize, sizeof(tSize));
+        char tFileLine[192] = "";
+        snprintf(tFileLine, sizeof(tFileLine), "%s [%s]", tName, tSize);
+        UTL.PrintInfo(tFileLine, EUtilsInfoType::Cell);
+      }
+      File tNext = tRoot.openNextFile();
+      tEntry.close();
+      tEntry = tNext;
+    }
+    tRoot.close();
     UTL.PrintInfo("", EUtilsInfoType::Footer);
   }
 
