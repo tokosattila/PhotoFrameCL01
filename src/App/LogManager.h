@@ -5,6 +5,12 @@
 
 namespace App {
 
+  struct SLogDate {
+    uint16_t Year;
+    uint8_t Month;
+    uint8_t Day;
+  };
+
   enum class ELogLevel : uint8_t {
     Boot = 0,
     Halt,
@@ -44,6 +50,9 @@ namespace App {
       void Ota(const char *tEvent, size_t tWritten = 0, size_t tTotal = 0);
       void Warn(const char *tFormat, ...);
       void Error(const char *tFormat, ...);
+      bool ListAvailableDates(std::vector<SLogDate> &tOut);
+      bool ReadDayContent(uint16_t tYear, uint8_t tMonth, uint8_t tDay, String &tOut, size_t tMaxBytes = 256 * 1024);
+      bool DeleteAllLogs();
     private:
       LogManager_();
       LogManager_(const LogManager_&) = delete;
@@ -69,6 +78,7 @@ namespace App {
       void AppendToBuffer(const char *tLine);
       void FlushBufferToFile();
       bool IsFileSystemAvailable() const;
+      bool DeleteRecursive(const char *tPath);
       const char *LevelToString(ELogLevel tLevel) const;
       bool FormatTimestamp(char *tBuffer, size_t tSize) const;
       void FormatLine(char *tOut, size_t tOutSize, ELogLevel tLevel, const char *tMessage) const;

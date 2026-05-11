@@ -2,6 +2,7 @@
 #define DASHBOARD_UTILS_H
 
 #include <App/Global.h>
+#include <App/Dashboard/Languages/Registry.h>
 
 namespace App {
 
@@ -93,11 +94,49 @@ namespace App {
         tOutputFileName[tWritePosition] = '\0';
       }
 
+      static inline String GetLanguageCodeFromPath(const String &tPath) {
+        int tStart = tPath.lastIndexOf('/');
+        if (tStart < 0) return String();
+        int tEnd = tPath.lastIndexOf('.');
+        if (tEnd <= tStart) return String();
+        String tCode = tPath.substring(tStart + 1, tEnd);
+        tCode.toLowerCase();
+        return tCode;
+      }
+
+      static inline std::vector<String> GetAvailableLanguageCodes() {
+        std::vector<String> tCodes;
+        const size_t tCount = sizeof(DashboardLanguages::sLanguageAssets) / sizeof(DashboardLanguages::sLanguageAssets[0]);
+        tCodes.reserve(tCount);
+        for (size_t tIndex = 0; tIndex < tCount; tIndex++) {
+          const String tCode = GetLanguageCodeFromPath(String(DashboardLanguages::sLanguageAssets[tIndex].Path ? DashboardLanguages::sLanguageAssets[tIndex].Path : ""));
+          if (!tCode.length()) continue;
+          bool tExists = false;
+          for (const String &tExisting : tCodes) {
+            if (tExisting == tCode) { tExists = true; break; }
+          }
+          if (!tExists) tCodes.push_back(tCode);
+        }
+        return tCodes;
+      }
+
+      static inline bool IsSupportedLanguage(const String &tLanguage) {
+        String tCode = tLanguage;
+        tCode.trim();
+        tCode.toLowerCase();
+        if (!tCode.length()) return false;
+        const std::vector<String> tCodes = GetAvailableLanguageCodes();
+        for (const String &tKnown : tCodes) {
+          if (tKnown == tCode) return true;
+        }
+        return false;
+      }
+
       static inline String NormalizeLanguageCode(const String &tLanguage) {
         String tNormalized = tLanguage;
         tNormalized.trim();
         tNormalized.toLowerCase();
-        if (tNormalized == "en" || tNormalized == "hu") return tNormalized;
+        if (IsSupportedLanguage(tNormalized)) return tNormalized;
         return String();
       }
 
@@ -118,7 +157,14 @@ namespace App {
           const String tNormalizedLanguage = NormalizeLanguageCode(tLanguage);
           if (tNormalizedLanguage.length()) return tNormalizedLanguage;
         }
-        return tNormalizedPreferredLanguage.length() ? tNormalizedPreferredLanguage : String("en");
+        if (tNormalizedPreferredLanguage.length()) return tNormalizedPreferredLanguage;
+        if (IsSupportedLanguage("en")) return String("en");
+        const std::vector<String> tAvailableLanguages = GetAvailableLanguageCodes();
+        for (const String &tLanguage : tAvailableLanguages) {
+          const String tNormalizedLanguage = NormalizeLanguageCode(tLanguage);
+          if (tNormalizedLanguage.length()) return tNormalizedLanguage;
+        }
+        return String();
       }
 
       static inline void NormalizeEnabledLanguages(std::vector<String> &tLanguages, const String &tPreferredLanguage = "en") {
@@ -132,8 +178,9 @@ namespace App {
           tNormalizedLanguages.push_back(tNormalizedLanguage);
         };
         for (const String &tLanguage : tLanguages) tAppendUnique(tLanguage);
+        if (IsSupportedLanguage("en")) tAppendUnique("en");
         if (tNormalizedLanguages.empty()) tAppendUnique(ResolveLanguage(tNormalizedLanguages, tPreferredLanguage));
-        if (tNormalizedLanguages.empty()) tAppendUnique("en");
+        if (tNormalizedLanguages.empty() && IsSupportedLanguage("en")) tAppendUnique("en");
         tLanguages = tNormalizedLanguages;
       }
 

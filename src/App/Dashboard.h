@@ -108,6 +108,13 @@ namespace App {
       uint8_t mLastOtaProgressPercent = 0xFF;
       bool mRoutesRegistered = false;
       bool mServerStarted = false;
+      volatile uint8_t mStorageFormatProgress = 0;
+      bool mStorageFormatActive = false;
+      bool mStorageFormatDone = false;
+      bool mStorageFormatSuccess = false;
+      EFileSystemType mStorageFormatType = EFileSystemType::SDCard;
+      char mStorageFormatMessage[64] = "";
+      char mStorageFormatTarget[24] = "";
       static String EscapeJsonText(const String &tValue);
       static bool ParseBoolValue(const String &tValue);
       static bool TryGetRequestValue(AsyncWebServerRequest *tRequest, const char *tKey, String &tValue);
@@ -189,7 +196,11 @@ namespace App {
       void HandleUserSave(AsyncWebServerRequest *tRequest);
       void HandleUserRestore(AsyncWebServerRequest *tRequest);
       void HandleUserBootTargetSave(AsyncWebServerRequest *tRequest);
+      void HandleUserStorageFormat(AsyncWebServerRequest *tRequest);
+      void HandleUserStorageFormatProgress(AsyncWebServerRequest *tRequest);
       void HandleWakeUpSave(AsyncWebServerRequest *tRequest);
+      bool StartStorageFormatTask(EFileSystemType tType, const char *tTargetKey);
+      static void RunStorageFormatTask(void *tContext);
       void ParseConfigSave(AsyncWebServerRequest *tRequest, SAppConfig &tConfig);
       void HandleImagesList(AsyncWebServerRequest *tRequest);
       void HandleImageDelete(AsyncWebServerRequest *tRequest, const String &tBody);
@@ -206,6 +217,10 @@ namespace App {
       static size_t BuildConfigJson(char *tBuffer, size_t tSize, const SAppConfig &tConfig);
       static size_t BuildImagesJson(char *tBuffer, size_t tSize, const char *tDirectoryPath);
       void HandleStats(AsyncWebServerRequest *tRequest);
+      void HandleLogsList(AsyncWebServerRequest *tRequest);
+      void HandleLogsDay(AsyncWebServerRequest *tRequest);
+      void HandleLogsDownload(AsyncWebServerRequest *tRequest);
+      void HandleLogsDeleteAll(AsyncWebServerRequest *tRequest);
       void HandleImageRename(AsyncWebServerRequest *tRequest);
       void HandleImageSetCurrent(AsyncWebServerRequest *tRequest);
       void HandleImageFile(AsyncWebServerRequest *tRequest);

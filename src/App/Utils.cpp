@@ -86,6 +86,79 @@ namespace App {
     return static_cast<uint32_t>(tNowMs - tStartMs) >= tDelayMs;
   }
 
+  String Utils_::NormalizeLanguageCode(const String &tLanguage) {
+    String tNormalized = tLanguage;
+    tNormalized.trim();
+    tNormalized.toLowerCase();
+    if (tNormalized == "en" || tNormalized == "hu") return tNormalized;
+    return String();
+  }
+
+  bool Utils_::IsLanguageEnabled(const std::vector<String> &tLanguages, const String &tLanguage) {
+    const String tNormalized = NormalizeLanguageCode(tLanguage);
+    if (!tNormalized.length()) return false;
+    for (const String &tItem : tLanguages) {
+      if (NormalizeLanguageCode(tItem) == tNormalized) return true;
+    }
+    return false;
+  }
+
+  String Utils_::ResolveLanguage(const std::vector<String> &tLanguages, const String &tPreferredLanguage) {
+    const String tNormalizedPreferredLanguage = NormalizeLanguageCode(tPreferredLanguage);
+    if (tNormalizedPreferredLanguage.length() && IsLanguageEnabled(tLanguages, tNormalizedPreferredLanguage)) return tNormalizedPreferredLanguage;
+    if (IsLanguageEnabled(tLanguages, "en")) return String("en");
+    for (const String &tLanguage : tLanguages) {
+      const String tNormalizedLanguage = NormalizeLanguageCode(tLanguage);
+      if (tNormalizedLanguage.length()) return tNormalizedLanguage;
+    }
+    return tNormalizedPreferredLanguage.length() ? tNormalizedPreferredLanguage : String("en");
+  }
+
+  void Utils_::NormalizeEnabledLanguages(std::vector<String> &tLanguages, const String &tPreferredLanguage) {
+    std::vector<String> tNormalizedLanguages;
+    auto tAppendUnique = [&](const String &tLanguage) {
+      const String tNormalizedLanguage = NormalizeLanguageCode(tLanguage);
+      if (!tNormalizedLanguage.length()) return;
+      for (const String &tExisting : tNormalizedLanguages) {
+        if (tExisting == tNormalizedLanguage) return;
+      }
+      tNormalizedLanguages.push_back(tNormalizedLanguage);
+    };
+    for (const String &tLanguage : tLanguages) tAppendUnique(tLanguage);
+    tAppendUnique("en");
+    if (tNormalizedLanguages.empty()) tAppendUnique(ResolveLanguage(tNormalizedLanguages, tPreferredLanguage));
+    if (tNormalizedLanguages.empty()) tAppendUnique("en");
+    tLanguages = tNormalizedLanguages;
+  }
+
+  std::vector<String> Utils_::ParseEnabledLanguages(const String &tValue, const String &tPreferredLanguage) {
+    std::vector<String> tLanguages;
+    int tStart = 0;
+    while (tStart <= static_cast<int>(tValue.length())) {
+      const int tSeparator = tValue.indexOf('|', tStart);
+      if (tSeparator >= 0) {
+        tLanguages.push_back(tValue.substring(tStart, tSeparator));
+        tStart = tSeparator + 1;
+        continue;
+      }
+      tLanguages.push_back(tValue.substring(tStart));
+      break;
+    }
+    NormalizeEnabledLanguages(tLanguages, tPreferredLanguage);
+    return tLanguages;
+  }
+
+  String Utils_::JoinEnabledLanguages(const std::vector<String> &tLanguages, const String &tPreferredLanguage) {
+    std::vector<String> tNormalizedLanguages = tLanguages;
+    NormalizeEnabledLanguages(tNormalizedLanguages, tPreferredLanguage);
+    String tJoined;
+    for (size_t tIndex = 0; tIndex < tNormalizedLanguages.size(); tIndex++) {
+      if (tIndex > 0) tJoined += '|';
+      tJoined += tNormalizedLanguages[tIndex];
+    }
+    return tJoined;
+  }
+
   void Utils_::Init() {
     ReloadConfig();
   }

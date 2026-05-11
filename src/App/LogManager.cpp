@@ -312,4 +312,180 @@ namespace App {
     mWriteBufferPos = 0;
   }
 
+  static bool ParseUnsignedToken(const char *tText, uint32_t &tValue) {
+    if (!tText || !tText[0]) return false;
+    uint32_t tParsed = 0;
+    for (const char *tCursor = tText; *tCursor; tCursor++) {
+      if (*tCursor < '0' || *tCursor > '9') return false;
+      tParsed = tParsed * 10 + static_cast<uint32_t>(*tCursor - '0');
+    }
+    tValue = tParsed;
+    return true;
+  }
+
+  bool LogManager_::ListAvailableDates(std::vector<SLogDate> &tOut) {
+    tOut.clear();
+    if (!IsFileSystemAvailable()) return false;
+    Guard tLock;
+    FlushBufferToFile();
+    char tRootPath[24] = "";
+    snprintf(tRootPath, sizeof(tRootPath), "/%s", kLogsRoot);
+    if (!STG.Exists(tRootPath)) return true;
+    File tRootDir = STG.OpenFile(tRootPath, FILE_READ, false);
+    if (!tRootDir || !tRootDir.isDirectory()) {
+      if (tRootDir) tRootDir.close();
+      return true;
+    }
+    for (File tYearEntry = tRootDir.openNextFile(); tYearEntry; tYearEntry = tRootDir.openNextFile()) {
+      if (!tYearEntry.isDirectory()) {
+        tYearEntry.close();
+        continue;
+      }
+      uint32_t tYearValue = 0;
+      const char *tYearLeaf = strrchr(tYearEntry.path(), '/');
+      tYearLeaf = tYearLeaf ? tYearLeaf + 1 : tYearEntry.name();
+      if (!ParseUnsignedToken(tYearLeaf, tYearValue) || tYearValue < 2000 || tYearValue > 2999) {
+        tYearEntry.close();
+        continue;
+      }
+      for (File tMonthEntry = tYearEntry.openNextFile(); tMonthEntry; tMonthEntry = tYearEntry.openNextFile()) {
+        if (!tMonthEntry.isDirectory()) {
+          tMonthEntry.close();
+          continue;
+        }
+        uint32_t tMonthValue = 0;
+        const char *tMonthLeaf = strrchr(tMonthEntry.path(), '/');
+        tMonthLeaf = tMonthLeaf ? tMonthLeaf + 1 : tMonthEntry.name();
+        if (!ParseUnsignedToken(tMonthLeaf, tMonthValue) || tMonthValue < 1 || tMonthValue > 12) {
+          tMonthEntry.close();
+          continue;
+        }
+        for (File tDayEntry = tMonthEntry.openNextFile(); tDayEntry; tDayEntry = tMonthEntry.openNextFile()) {
+          if (!tDayEntry.isDirectory()) {
+            tDayEntry.close();
+            continue;
+          }
+          uint32_t tDayValue = 0;
+          const char *tDayLeaf = strrchr(tDayEntry.path(), '/');
+          tDayLeaf = tDayLeaf ? tDayLeaf + 1 : tDayEntry.name();
+          if (!ParseUnsignedToken(tDayLeaf, tDayValue) || tDayValue < 1 || tDayValue > 31) {
+            tDayEntry.close();
+            continue;
+          }
+          bool tHasLog = false;
+          for (File tLogFile = tDayEntry.openNextFile(); tLogFile; tLogFile = tDayEntry.openNextFile()) {
+            if (!tLogFile.isDirectory()) {
+              const char *tLogLeaf = strrchr(tLogFile.path(), '/');
+              tLogLeaf = tLogLeaf ? tLogLeaf + 1 : tLogFile.name();
+              const size_t tLeafLen = strlen(tLogLeaf);
+              if (tLeafLen > 4 && strcasecmp(tLogLeaf + tLeafLen - 4, ".log") == 0) tHasLog = true;
+            }
+            tLogFile.close();
+            if (tHasLog) break;
+          }
+          if (tHasLog) tOut.push_back(SLogDate{ static_cast<uint16_t>(tYearValue), static_cast<uint8_t>(tMonthValue), static_cast<uint8_t>(tDayValue) });
+          tDayEntry.close();
+        }
+        tMonthEntry.close();
+      }
+      tYearEntry.close();
+    }
+    tRootDir.close();
+    std::sort(tOut.begin(), tOut.end(), [](const SLogDate &tLeft, const SLogDate &tRight) {
+      if (tLeft.Year != tRight.Year) return tLeft.Year > tRight.Year;
+      if (tLeft.Month != tRight.Month) return tLeft.Month > tRight.Month;
+      return tLeft.Day > tRight.Day;
+    });
+    return true;
+  }
+
+  bool LogManager_::ReadDayContent(uint16_t tYear, uint8_t tMonth, uint8_t tDay, String &tOut, size_t tMaxBytes) {
+    tOut = "";
+    if (tYear < 2000 || tYear > 2999 || tMonth < 1 || tMonth > 12 || tDay < 1 || tDay > 31) return false;
+    if (!IsFileSystemAvailable()) return false;
+    Guard tLock;
+    FlushBufferToFile();
+    bool tAnyFound = false;
+    bool tFirstEntry = true;
+    char tBaseName[16] = "";
+    snprintf(tBaseName, sizeof(tBaseName), "%04u%02u%02u", static_cast<unsigned>(tYear), static_cast<unsigned>(tMonth), static_cast<unsigned>(tDay));
+    for (uint8_t tRollIndex = 0; tRollIndex < kMaxDailyFileRollIndex; tRollIndex++) {
+      char tFilePath[64] = "";
+      if (tRollIndex == 0) snprintf(tFilePath, sizeof(tFilePath), "/%s/%04u/%02u/%02u/%s.log", kLogsRoot, static_cast<unsigned>(tYear), static_cast<unsigned>(tMonth), static_cast<unsigned>(tDay), tBaseName);
+      else snprintf(tFilePath, sizeof(tFilePath), "/%s/%04u/%02u/%02u/%s_%u.log", kLogsRoot, static_cast<unsigned>(tYear), static_cast<unsigned>(tMonth), static_cast<unsigned>(tDay), tBaseName, static_cast<unsigned>(tRollIndex));
+      if (!STG.Exists(tFilePath)) continue;
+      File tFile = STG.OpenFile(tFilePath, FILE_READ, false);
+      if (!tFile) continue;
+      if (!tFirstEntry) tOut += "\n----- next file -----\n";
+      tFirstEntry = false;
+      tAnyFound = true;
+      uint8_t tBuffer[512] = {};
+      while (tFile.available() && tOut.length() < tMaxBytes) {
+        const size_t tRead = tFile.read(tBuffer, sizeof(tBuffer));
+        if (tRead == 0) break;
+        const size_t tRemaining = tMaxBytes > tOut.length() ? tMaxBytes - tOut.length() : 0;
+        const size_t tCopy = tRead < tRemaining ? tRead : tRemaining;
+        for (size_t tIndex = 0; tIndex < tCopy; tIndex++) tOut += static_cast<char>(tBuffer[tIndex]);
+        if (tRead > tRemaining) {
+          tOut += "\n[... truncated ...]\n";
+          break;
+        }
+      }
+      tFile.close();
+      if (tOut.length() >= tMaxBytes) break;
+    }
+    return tAnyFound;
+  }
+
+  bool LogManager_::DeleteRecursive(const char *tPath) {
+    if (!tPath || !tPath[0]) return false;
+    if (!STG.Exists(tPath)) return true;
+    File tEntry = STG.OpenFile(tPath, FILE_READ, false);
+    if (!tEntry) return false;
+    if (!tEntry.isDirectory()) {
+      tEntry.close();
+      return STG.DeleteFile(tPath);
+    }
+    bool tAllOk = true;
+    for (File tChild = tEntry.openNextFile(); tChild; tChild = tEntry.openNextFile()) {
+      char tChildPath[160] = "";
+      strncpy(tChildPath, tChild.path(), sizeof(tChildPath) - 1);
+      tChildPath[sizeof(tChildPath) - 1] = '\0';
+      const bool tIsDir = tChild.isDirectory();
+      tChild.close();
+      if (tIsDir) {
+        if (!DeleteRecursive(tChildPath)) tAllOk = false;
+      } else {
+        if (!STG.DeleteFile(tChildPath)) tAllOk = false;
+      }
+    }
+    tEntry.close();
+    if (!STG.DeleteDir(tPath)) tAllOk = false;
+    return tAllOk;
+  }
+
+  bool LogManager_::DeleteAllLogs() {
+    if (!IsFileSystemAvailable()) return false;
+    Guard tLock;
+    mWriteBufferPos = 0;
+    mCurrentFilePath[0] = '\0';
+    mInitialized = false;
+    char tRootPath[24] = "";
+    snprintf(tRootPath, sizeof(tRootPath), "/%s", kLogsRoot);
+    if (!STG.Exists(tRootPath)) return true;
+    bool tAllDeleted = true;
+    File tRootDir = STG.OpenFile(tRootPath, FILE_READ, false);
+    if (tRootDir && tRootDir.isDirectory()) {
+      for (File tYearEntry = tRootDir.openNextFile(); tYearEntry; tYearEntry = tRootDir.openNextFile()) {
+        char tYearPath[64] = "";
+        strncpy(tYearPath, tYearEntry.path(), sizeof(tYearPath) - 1);
+        tYearPath[sizeof(tYearPath) - 1] = '\0';
+        tYearEntry.close();
+        if (!DeleteRecursive(tYearPath)) tAllDeleted = false;
+      }
+    }
+    if (tRootDir) tRootDir.close();
+    return tAllDeleted;
+  }
+
 }

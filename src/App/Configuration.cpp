@@ -1,25 +1,6 @@
 #include <App/Configuration.h>
-#include <App/Dashboard/Utils/DashboardUtils.h>
 
 namespace App {
-
-  static uint8_t DecodeWakeUpModeFromStorage(uint8_t tStoredWakeUp, ETimerWakeUp tDefaultWakeUp) {
-    const uint8_t tLegacyMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes) + 1;
-    const uint8_t tLegacyMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly) + 1;
-    if (tStoredWakeUp >= tLegacyMinMode && tStoredWakeUp <= tLegacyMaxMode) return static_cast<uint8_t>(tStoredWakeUp - 1);
-    if (tStoredWakeUp == static_cast<uint8_t>(ETimerWakeUp::Minutes)) return static_cast<uint8_t>(ETimerWakeUp::Minutes);
-    return static_cast<uint8_t>(tDefaultWakeUp);
-  }
-
-  static uint8_t EncodeWakeUpModeForStorage(ETimerWakeUp tWakeUp) {
-    const uint8_t tMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes);
-    const uint8_t tMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly);
-    const uint8_t tRawMode = static_cast<uint8_t>(tWakeUp);
-    const uint8_t tNormalizedMode = (tRawMode < tMinMode || tRawMode > tMaxMode)
-      ? static_cast<uint8_t>(ETimerWakeUp::Daily)
-      : tRawMode;
-    return static_cast<uint8_t>(tNormalizedMode + 1);
-  }
 
   Configuration_ &Configuration_::Instance() {
     static Configuration_ tInstance;
@@ -331,8 +312,14 @@ namespace App {
     const SAppConfig tDefaultConfig = GetDefaultConfig();
     STimerConfig tCfg = tDefaultConfig.Timer;
     AccessConfig(true, [&]() {
-      const uint8_t tStoredWakeUp = mConfig.getUChar(kNvsTimerWake, EncodeWakeUpModeForStorage(tDefaultConfig.Timer.WakeUp));
-      tCfg.WakeUp = static_cast<ETimerWakeUp>(DecodeWakeUpModeFromStorage(tStoredWakeUp, tDefaultConfig.Timer.WakeUp));
+      const uint8_t tDefaultWakeUp = static_cast<uint8_t>(tDefaultConfig.Timer.WakeUp);
+      const uint8_t tStoredWakeUp = mConfig.getUChar(kNvsTimerWake, tDefaultWakeUp);
+      const uint8_t tMinMode = static_cast<uint8_t>(ETimerWakeUp::Minutes);
+      const uint8_t tMaxMode = static_cast<uint8_t>(ETimerWakeUp::Monthly);
+      const uint8_t tWakeUp = (tStoredWakeUp >= tMinMode && tStoredWakeUp <= tMaxMode)
+        ? tStoredWakeUp
+        : tDefaultWakeUp;
+      tCfg.WakeUp = static_cast<ETimerWakeUp>(tWakeUp);
       tCfg.WakeUpHour = mConfig.getUChar(kNvsTimerWakeHour, tDefaultConfig.Timer.WakeUpHour);
     });
     return tCfg;
@@ -354,10 +341,10 @@ namespace App {
     AccessConfig(true, [&]() {
       tCfg.User = mConfig.getString(kNvsDashUser, tDefaultConfig.Dashboard.User);
       tCfg.Password = mConfig.getString(kNvsDashPassword, tDefaultConfig.Dashboard.Password);
-      tCfg.Language = DashboardUtils_::NormalizeLanguageCode(mConfig.getString(kNvsDashLanguage, tDefaultConfig.Dashboard.Language));
-      if (!tCfg.Language.length()) tCfg.Language = DashboardUtils_::NormalizeLanguageCode(tDefaultConfig.Dashboard.Language);
-      tCfg.EnabledLanguages = DashboardUtils_::ParseEnabledLanguages(
-        mConfig.getString(kNvsDashEnabledLanguages, DashboardUtils_::JoinEnabledLanguages(tDefaultConfig.Dashboard.EnabledLanguages, tCfg.Language)),
+      tCfg.Language = UTL.NormalizeLanguageCode(mConfig.getString(kNvsDashLanguage, tDefaultConfig.Dashboard.Language));
+      if (!tCfg.Language.length()) tCfg.Language = UTL.NormalizeLanguageCode(tDefaultConfig.Dashboard.Language);
+      tCfg.EnabledLanguages = UTL.ParseEnabledLanguages(
+        mConfig.getString(kNvsDashEnabledLanguages, UTL.JoinEnabledLanguages(tDefaultConfig.Dashboard.EnabledLanguages, tCfg.Language)),
         tCfg.Language);
       tCfg.Theme = mConfig.getString(kNvsDashTheme, tDefaultConfig.Dashboard.Theme);
       tCfg.ShowDescription = mConfig.getBool(kNvsDashShowDescription, tDefaultConfig.Dashboard.ShowDescription);
@@ -367,8 +354,8 @@ namespace App {
     tCfg.Theme.trim();
     tCfg.Theme.toLowerCase();
     if (tCfg.Theme != "dark") tCfg.Theme = "light";
-    DashboardUtils_::NormalizeEnabledLanguages(tCfg.EnabledLanguages, tCfg.Language);
-    tCfg.Language = DashboardUtils_::ResolveLanguage(tCfg.EnabledLanguages, tCfg.Language);
+    UTL.NormalizeEnabledLanguages(tCfg.EnabledLanguages, tCfg.Language);
+    tCfg.Language = UTL.ResolveLanguage(tCfg.EnabledLanguages, tCfg.Language);
     return tCfg;
   }
 
@@ -435,12 +422,12 @@ namespace App {
     const String tFallbackApIp = tConfig.Connection.FallbackApIp.length() ? tConfig.Connection.FallbackApIp : tDefaultConfig.Connection.FallbackApIp;
     const String tFallbackApGateway = tConfig.Connection.FallbackApGateway.length() ? tConfig.Connection.FallbackApGateway : tDefaultConfig.Connection.FallbackApGateway;
     const String tFallbackApSubnet = tConfig.Connection.FallbackApSubnet.length() ? tConfig.Connection.FallbackApSubnet : tDefaultConfig.Connection.FallbackApSubnet;
-    String tDashboardLanguage = DashboardUtils_::NormalizeLanguageCode(tConfig.Dashboard.Language);
-    if (!tDashboardLanguage.length()) tDashboardLanguage = DashboardUtils_::NormalizeLanguageCode(tDefaultConfig.Dashboard.Language);
+    String tDashboardLanguage = UTL.NormalizeLanguageCode(tConfig.Dashboard.Language);
+    if (!tDashboardLanguage.length()) tDashboardLanguage = UTL.NormalizeLanguageCode(tDefaultConfig.Dashboard.Language);
     std::vector<String> tEnabledLanguages = tConfig.Dashboard.EnabledLanguages;
-    DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tDashboardLanguage);
-    tDashboardLanguage = DashboardUtils_::ResolveLanguage(tEnabledLanguages, tDashboardLanguage);
-    const String tEnabledLanguagesValue = DashboardUtils_::JoinEnabledLanguages(tEnabledLanguages, tDashboardLanguage);
+    UTL.NormalizeEnabledLanguages(tEnabledLanguages, tDashboardLanguage);
+    tDashboardLanguage = UTL.ResolveLanguage(tEnabledLanguages, tDashboardLanguage);
+    const String tEnabledLanguagesValue = UTL.JoinEnabledLanguages(tEnabledLanguages, tDashboardLanguage);
     String tDashboardTheme = tConfig.Dashboard.Theme;
     tDashboardTheme.trim();
     tDashboardTheme.toLowerCase();
@@ -510,7 +497,7 @@ namespace App {
       tPutString(kNvsConStaDns2, tConfig.Connection.StaSecondaryDns);
       tPutBool(kNvsConMdnsEnable, mConfig.putBool(kNvsConMdnsEnable, tConfig.Connection.MdnsEnable));
       tPutString(kNvsConMdnsName, tConfig.Connection.MdnsName);
-      tPutBool(kNvsTimerWake, mConfig.putUChar(kNvsTimerWake, EncodeWakeUpModeForStorage(tConfig.Timer.WakeUp)));
+      tPutBool(kNvsTimerWake, mConfig.putUChar(kNvsTimerWake, static_cast<uint8_t>(tConfig.Timer.WakeUp)));
       tPutBool(kNvsTimerWakeHour, mConfig.putUChar(kNvsTimerWakeHour, tConfig.Timer.WakeUpHour));
       tPutBool(kNvsStgDefaultFs, mConfig.putUChar(kNvsStgDefaultFs, static_cast<uint8_t>(tConfig.Storage.DefaultFileSystem)));
       tPutBool(kNvsStgFallback, mConfig.putBool(kNvsStgFallback, tConfig.Storage.FallbackEnabled));

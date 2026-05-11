@@ -3,6 +3,7 @@
 
 #include <App/Dashboard/Pages/Registry.h>
 #include <App/Dashboard/Partials/Modals.h>
+#include <App/Dashboard/Utils/DashboardUtils.h>
 
 namespace App {
 
@@ -43,20 +44,11 @@ namespace App {
       }
 
       static String NormalizeLanguageCode(const String &tLanguage) {
-        String tNormalized = tLanguage;
-        tNormalized.trim();
-        tNormalized.toLowerCase();
-        if (tNormalized == "en" || tNormalized == "hu") return tNormalized;
-        return String();
+        return DashboardUtils_::NormalizeLanguageCode(tLanguage);
       }
 
       static bool IsLanguageEnabled(const std::vector<String> &tLanguages, const String &tLanguage) {
-        const String tNormalized = NormalizeLanguageCode(tLanguage);
-        if (!tNormalized.length()) return false;
-        for (const String &tItem : tLanguages) {
-          if (NormalizeLanguageCode(tItem) == tNormalized) return true;
-        }
-        return false;
+        return DashboardUtils_::IsLanguageEnabled(tLanguages, tLanguage);
       }
 
       static String ReplaceSiteTokens(const String &tSource, const SAppConfig &tConfig) {
@@ -95,14 +87,26 @@ namespace App {
       }
 
       static String RenderLanguageDropdown(const SAppConfig &tConfig) {
-        const bool tEnglishEnabled = IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "en");
-        const bool tHungarianEnabled = IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "hu");
-        const uint8_t tEnabledCount = static_cast<uint8_t>((tEnglishEnabled ? 1 : 0) + (tHungarianEnabled ? 1 : 0));
+        std::vector<String> tEnabledLanguages = tConfig.Dashboard.EnabledLanguages;
+        DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tConfig.Dashboard.Language);
+        std::vector<String> tAvailableLanguages = DashboardUtils_::GetAvailableLanguageCodes();
         String tHtml = "<div id=languages class=\"dropdown dropdown-right";
-        if (tEnabledCount <= 1) tHtml += " display-none";
+        if (tEnabledLanguages.size() <= 1) tHtml += " display-none";
         tHtml += "\" data-language-dropdown=1><div class=navbar-item tooltip data-t-tooltip=language><i class=\"icon icon-translate\"></i></div><div class=dropdown-items>";
-        if (tEnglishEnabled) tHtml += "<a class=dropdown-link data-language=en href=# data-t=en></a>";
-        if (tHungarianEnabled) tHtml += "<a class=dropdown-link data-language=hu href=# data-t=hu></a>";
+        for (const String &tLanguage : tAvailableLanguages) {
+          const String tNormalizedLanguage = NormalizeLanguageCode(tLanguage);
+          if (!tNormalizedLanguage.length()) continue;
+          const bool tEnabled = IsLanguageEnabled(tEnabledLanguages, tNormalizedLanguage);
+          tHtml += "<a class=\"dropdown-link";
+          if (!tEnabled) tHtml += " display-none";
+          tHtml += "\" data-language=";
+          tHtml += tNormalizedLanguage;
+          tHtml += " data-language-enabled=";
+          tHtml += tEnabled ? "true" : "false";
+          tHtml += " href=# data-t=";
+          tHtml += tNormalizedLanguage;
+          tHtml += "></a>";
+        }
         tHtml += "</div></div>";
         return tHtml;
       }
@@ -140,8 +144,10 @@ namespace App {
         if (tTheme != "dark") tTheme = "light";
         String tHtml;
         tHtml.reserve(2048);
+        String tLanguage = NormalizeLanguageCode(tConfig.Dashboard.Language);
+        if (!tLanguage.length()) tLanguage = "en";
         tHtml += "<!doctype html><html lang=";
-        tHtml += EscapeHtml(tConfig.Dashboard.Language.length() ? tConfig.Dashboard.Language : String("en"));
+        tHtml += EscapeHtml(tLanguage);
         tHtml += " class=";
         tHtml += tTheme;
         tHtml += " style=\"color-scheme:";
@@ -243,6 +249,7 @@ namespace App {
         tHtml += kDocumentationUrl;
         tHtml += "\"><i class=\"icon icon-book\"></i><span class=nav-item-text data-t=documentation></span></a></div></div><div class=\"nav nav-tree\"><div class=nav-label data-t=system_tools></div>";
         tHtml += RenderNavItem("stats", tPage.Key, "icon-database", "statistics");
+        tHtml += RenderNavItem("logs", tPage.Key, "icon-card-text", "logs");
         tHtml += RenderNavItem("firmware", tPage.Key, "icon-code-square", "firmware");
         tHtml += "</div><div class=\"nav nav-tree display-medium\"><div class=nav-item><div class=nav-link data-modal=#restart-modal><i class=\"icon icon-arrow-repeat\"></i><span class=nav-item-text data-t=restart></span></div></div></div><div class=\"nav nav-tree display-medium\"><div class=nav-item><div class=nav-link data-modal=#logout-modal><i class=\"icon icon-box-arrow-left\"></i><span class=nav-item-text data-t=logout></span></div></div></div></aside>";
         return tHtml;
@@ -381,12 +388,18 @@ namespace App {
         tLanguage.toLowerCase();
         String tLanguageTokenValue = tLanguage;
         tLanguageTokenValue.toUpperCase();
-        const bool tEnglishEnabled = IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "en");
-        const bool tHungarianEnabled = IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, "hu");
+        std::vector<String> tAvailableLanguages = DashboardUtils_::GetAvailableLanguageCodes();
         String tLanguageOptions;
-        tLanguageOptions.reserve(96);
-        if (tEnglishEnabled) tLanguageOptions += "<option value=en __S_LANG_EN__ data-t=en></option>";
-        if (tHungarianEnabled) tLanguageOptions += "<option value=hu __S_LANG_HU__ data-t=hu></option>";
+        tLanguageOptions.reserve(32 * tAvailableLanguages.size() + 16);
+        for (const String &tLanguageItem : tAvailableLanguages) {
+          const String tNormalizedLanguage = NormalizeLanguageCode(tLanguageItem);
+          if (!tNormalizedLanguage.length()) continue;
+          tLanguageOptions += "<option value=";
+          tLanguageOptions += tNormalizedLanguage;
+          tLanguageOptions += " data-t=";
+          tLanguageOptions += tNormalizedLanguage;
+          tLanguageOptions += "></option>";
+        }
         ReplaceToken(tHtml, "__LANG_OPTIONS__", tLanguageOptions);
         SetSelectedByToken(tHtml, "__S_LANG__", tLanguageTokenValue);
       }

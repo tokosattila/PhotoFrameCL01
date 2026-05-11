@@ -1,4 +1,4 @@
-﻿#ifndef DASHBOARD_PAGE_NTP_H
+#ifndef DASHBOARD_PAGE_NTP_H
 #define DASHBOARD_PAGE_NTP_H
 
 #include <App/Global.h>
@@ -7,78 +7,7 @@
 namespace App {
   namespace DashboardPageNtp {
     const char Main[] PROGMEM = R"PAGE(
-<main class=dashboard-main>
-  <div class=dashboard-section>
-    <div class="dashboard-content dashboard-content-narrow">
-      <div class=breadcrumbs>
-        <a href=/index.html class=breadcrumbs-item><span data-t=home></span></a>
-        <a href=/settings.html class=breadcrumbs-item><span data-t=settings></span></a>
-        <span class=breadcrumbs-item><span data-t=time_synchronization></span></span>
-      </div>
-    </div>
-  </div>
-  <div class=dashboard-section>
-    <div class="dashboard-content dashboard-content-narrow">
-      <div class="flex flex-column flex-gap-medium">
-        <div class="group flex-item-grow mb-3">
-          <a href=/settings.html class="group-item button button-icon"><i class="icon icon-grid"></i></a>
-          <div class="flex-item-grow flex dropdown">
-            <div class="group-item flex-item-grow select" data-t=time_synchronization></div>
-            <div class=dropdown-items>
-              <a href=/settings/display.html class=dropdown-link data-t=display_eink></a>
-              <a href=/settings/network.html class=dropdown-link data-t=network_ap_sta></a>
-              <a href=/settings/mdns.html class=dropdown-link data-t=mdns_local_name></a>
-              <a href=/settings/ntp.html class="dropdown-link active" data-t=ntp_sync></a>
-              <a href=/settings/datetime.html class=dropdown-link data-t=rtc_datetime></a>
-              <a href=/settings/wakeup.html class=dropdown-link data-t=rtc_wakeup></a>
-              <a href=/settings/language.html class=dropdown-link data-t=language></a>
-              <a href=/settings/user.html class=dropdown-link data-t=user></a>
-              <a href=/settings/firmware.html class=dropdown-link data-t=firmware></a>
-            </div>
-          </div>
-        </div>
-        <div class="mb-2 mt-0 card-alert" data-dismiss-session=ntp-info-hint>
-          <div class=card-alert-icon><i class="icon icon-lightbulb"></i></div>
-          <small class=card-alert-text data-t=ntp_page_info></small>
-          <button class=card-alert-close type=button data-card-close></button>
-        </div>
-        <form data-ntp-form data-ntp-save-success-message data-ntp-save-error-message data-ntp-sync-success-message data-ntp-sync-error-message data-t-data-ntp-save-success-message=ntp_save_success data-t-data-ntp-save-error-message=ntp_save_error data-t-data-ntp-sync-success-message=ntp_sync_success data-t-data-ntp-sync-error-message=ntp_sync_error>
-          <template data-form-alert-template></template>
-          <div class="card-info mt-0 mb-6" data-ntp-ap-warning>
-            <div class=card-info-icon><i class="icon icon-exclamation-triangle"></i></div>
-            <div class=card-info-text data-t=ntp_unavailable_ap></div>
-          </div>
-          <div class=card>
-            <div class=card-body>
-              <div class="field mt-1" data-error data-t-data-error=invalid_ntp_server>
-                <div><label class=field-label for=field-ntp-server><span data-t=ntp_server></span></label></div>
-                <input class="input validate" id=field-ntp-server name=ntpServer value="__V_NTP_SRV__" type=text placeholder=ntp.example.com spellcheck=false pattern="^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?))*$" required>
-              </div>
-              <div class="field mt-3">
-                <div><label class=field-label for=field-ntp-auto-sync><span data-t=auto_sync_policy></span></label></div>
-                <div class=select>
-                  <span data-t=disabled></span>
-                  <select id=field-ntp-auto-sync name=ntpAutoSync data-ntp-auto-sync>
-                    <option value=0 data-t=disabled></option>
-                    <option value=86400 data-t=auto_sync_every_day></option>
-                    <option value=604800 data-t=auto_sync_every_week></option>
-                    <option value=2592000 data-t=auto_sync_every_month></option>
-                    <option value=7776000 data-t=auto_sync_every_3_months></option>
-                    <option value=15552000 data-t=auto_sync_every_6_months></option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="card-footer card-footer-equal-2">
-              <button type=button class=button data-ntp-sync-trigger data-modal=#ntp-sync-modal disabled aria-disabled=true tooltip data-t-tooltip=ntp_unavailable_ap_tooltip><i class="icon icon-arrow-repeat"></i><span data-t=sync_from_ntp></span></button>
-              <button type=submit class="button button-primary"><i class="icon icon-save"></i><span data-t=save></span></button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</main>
+<main class=dashboard-main> <div class=dashboard-section> <div class="dashboard-content dashboard-content-narrow"> <div class=breadcrumbs> <a href=/index.html class=breadcrumbs-item><span data-t=home></span></a> <a href=/settings.html class=breadcrumbs-item><span data-t=settings></span></a> <span class=breadcrumbs-item><span data-t=time_synchronization></span></span> </div> </div> </div> <div class=dashboard-section> <div class="dashboard-content dashboard-content-narrow"> <div class="flex flex-column flex-gap-medium"> <div class="group flex-item-grow mb-3"> <a href=/settings.html class="group-item button button-icon"><i class="icon icon-grid"></i></a> <div class="flex-item-grow flex dropdown"> <div class="group-item flex-item-grow select" data-t=time_synchronization></div> <div class=dropdown-items> <a href=/settings/display.html class=dropdown-link data-t=display_eink></a> <a href=/settings/network.html class=dropdown-link data-t=network_ap_sta></a> <a href=/settings/mdns.html class=dropdown-link data-t=mdns_local_name></a> <a href=/settings/ntp.html class="dropdown-link active" data-t=ntp_sync></a> <a href=/settings/datetime.html class=dropdown-link data-t=rtc_datetime></a> <a href=/settings/wakeup.html class=dropdown-link data-t=rtc_wakeup></a> <a href=/settings/language.html class=dropdown-link data-t=language></a> <a href=/settings/user.html class=dropdown-link data-t=user></a> <a href=/settings/storage.html class=dropdown-link data-t=storage></a> <a href=/settings/firmware.html class=dropdown-link data-t=firmware></a> </div> </div> </div> <div class="mb-2 mt-0 card-alert" data-dismiss-session=ntp-info-hint> <div class=card-alert-icon><i class="icon icon-lightbulb"></i></div> <small class=card-alert-text data-t=ntp_page_info></small> <button class=card-alert-close type=button data-card-close></button> </div> <form data-ntp-form data-ntp-save-success-message data-ntp-save-error-message data-ntp-sync-success-message data-ntp-sync-error-message data-t-data-ntp-save-success-message=ntp_save_success data-t-data-ntp-save-error-message=ntp_save_error data-t-data-ntp-sync-success-message=ntp_sync_success data-t-data-ntp-sync-error-message=ntp_sync_error> <template data-form-alert-template></template> <div class="card-info mt-0 mb-6" data-ntp-ap-warning> <div class=card-info-icon><i class="icon icon-exclamation-triangle"></i></div> <div class=card-info-text data-t=ntp_unavailable_ap></div> </div> <div class=card> <div class=card-body> <div class="field mt-1" data-error data-t-data-error=invalid_ntp_server> <div><label class=field-label for=field-ntp-server><span data-t=ntp_server></span></label></div> <input class="input validate" id=field-ntp-server name=ntpServer value="__V_NTP_SRV__" type=text placeholder=ntp.example.com spellcheck=false pattern="^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?))*$" required> </div> <div class="field mt-3"> <div><label class=field-label for=field-ntp-auto-sync><span data-t=auto_sync_policy></span></label></div> <div class=select> <span data-t=disabled></span> <select id=field-ntp-auto-sync name=ntpAutoSync data-ntp-auto-sync> <option value=0 data-t=disabled></option> <option value=86400 data-t=auto_sync_every_day></option> <option value=604800 data-t=auto_sync_every_week></option> <option value=2592000 data-t=auto_sync_every_month></option> <option value=7776000 data-t=auto_sync_every_3_months></option> <option value=15552000 data-t=auto_sync_every_6_months></option> </select> </div> </div> </div> <div class="card-footer card-footer-equal-2"> <button type=button class=button data-ntp-sync-trigger data-modal=#ntp-sync-modal disabled aria-disabled=true tooltip data-t-tooltip=ntp_unavailable_ap_tooltip><i class="icon icon-arrow-repeat"></i><span data-t=sync_from_ntp></span></button> <button type=submit class="button button-primary"><i class="icon icon-save"></i><span data-t=save></span></button> </div> </div> </form> </div> </div> </div> </main>
 )PAGE";
     const char *Extra = DashboardNtpModals::Extra;
   }

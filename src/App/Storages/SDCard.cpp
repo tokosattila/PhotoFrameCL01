@@ -314,6 +314,94 @@ namespace App {
     if (tVerbose) PrintListDir();
   }
 
+  size_t SDCard_::CountEntriesRecursive(const char *tDirPath) {
+    if (!tDirPath || tDirPath[0] == '\0') return 0;
+    File tDir = SD.open(NormalizePath(tDirPath), FILE_READ);
+    if (!tDir || !tDir.isDirectory()) {
+      tDir.close();
+      return 0;
+    }
+    size_t tTotal = 0;
+    File tEntry = tDir.openNextFile();
+    while (tEntry) {
+      const bool tIsDir = tEntry.isDirectory();
+      char tEntryPath[256] = "";
+      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
+      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      File tNext = tDir.openNextFile();
+      tEntry.close();
+      if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
+        tEntry = tNext;
+        continue;
+      }
+      if (tIsDir) tTotal += CountEntriesRecursive(tEntryPath) + 1;
+      else tTotal += 1;
+      tEntry = tNext;
+    }
+    tDir.close();
+    return tTotal;
+  }
+
+  bool SDCard_::WipeDirRecursive(const char *tDirPath, volatile uint8_t *tProgress, size_t tTotalEntries, size_t *tProcessedEntries) {
+    if (!tDirPath || tDirPath[0] == '\0') return false;
+    File tDir = SD.open(NormalizePath(tDirPath), FILE_READ);
+    if (!tDir || !tDir.isDirectory()) {
+      tDir.close();
+      return false;
+    }
+    auto tUpdateProgress = [&]() {
+      if (!tProgress || !tProcessedEntries || tTotalEntries == 0) return;
+      const size_t tDone = *tProcessedEntries;
+      const uint8_t tValue = static_cast<uint8_t>(constrain((int)((tDone * 100U) / tTotalEntries), 0, 100));
+      *tProgress = tValue;
+    };
+    bool tAllOk = true;
+    File tEntry = tDir.openNextFile();
+    while (tEntry) {
+      const bool tIsDir = tEntry.isDirectory();
+      char tEntryPath[256] = "";
+      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
+      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      File tNext = tDir.openNextFile();
+      tEntry.close();
+      if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
+        tEntry = tNext;
+        continue;
+      }
+      if (tIsDir) {
+        if (!WipeDirRecursive(tEntryPath, tProgress, tTotalEntries, tProcessedEntries)) tAllOk = false;
+        if (!SD.rmdir(tEntryPath)) tAllOk = false;
+      } else {
+        if (!SD.remove(tEntryPath)) tAllOk = false;
+      }
+      if (tProcessedEntries) {
+        (*tProcessedEntries)++;
+        tUpdateProgress();
+      }
+      tEntry = tNext;
+    }
+    tDir.close();
+    return tAllOk;
+  }
+
+  bool SDCard_::Format(volatile uint8_t *tProgress) {
+    Guard tLock;
+    if (!mMounted) return false;
+    InvalidateFileCache();
+    if (tProgress) *tProgress = 0;
+    const size_t tTotalEntries = CountEntriesRecursive("/");
+    if (tTotalEntries == 0) {
+      InvalidateFileCache();
+      if (tProgress) *tProgress = 100;
+      return true;
+    }
+    size_t tProcessedEntries = 0;
+    const bool tOk = WipeDirRecursive("/", tProgress, tTotalEntries, &tProcessedEntries);
+    InvalidateFileCache();
+    if (tProgress) *tProgress = 100;
+    return tOk;
+  }
+
   void SDCard_::PrintListDir(size_t tMaxLines) {
     (void)tMaxLines;
     xLOG_PL();

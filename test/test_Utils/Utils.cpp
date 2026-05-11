@@ -94,8 +94,7 @@ const char *ResolveBootReason(EResetReason tReason) {
 std::string NormalizeDashboardLanguageCode(const std::string &tLanguage) {
   std::string tNormalized = tLanguage;
   for (char &tChar : tNormalized) tChar = static_cast<char>(tolower(static_cast<unsigned char>(tChar)));
-  if (tNormalized == "en" || tNormalized == "hu") return tNormalized;
-  return std::string();
+  return tNormalized;
 }
 
 bool IsDashboardLanguageEnabled(const std::vector<std::string> &tLanguages, const std::string &tLanguage) {
@@ -111,7 +110,6 @@ bool IsDashboardLanguageEnabled(const std::vector<std::string> &tLanguages, cons
 std::string ResolveDashboardLanguage(const std::vector<std::string> &tLanguages, const std::string &tPreferredLanguage) {
   const std::string tNormalizedPreferredLanguage = NormalizeDashboardLanguageCode(tPreferredLanguage);
   if (!tNormalizedPreferredLanguage.empty() && IsDashboardLanguageEnabled(tLanguages, tNormalizedPreferredLanguage)) return tNormalizedPreferredLanguage;
-  if (IsDashboardLanguageEnabled(tLanguages, "en")) return std::string("en");
   for (const std::string &tLanguage : tLanguages) {
     const std::string tNormalizedLanguage = NormalizeDashboardLanguageCode(tLanguage);
     if (!tNormalizedLanguage.empty()) return tNormalizedLanguage;
@@ -135,6 +133,34 @@ void NormalizeDashboardEnabledLanguages(std::vector<std::string> &tLanguages, co
   if (tNormalizedLanguages.empty()) tAppendUnique(ResolveDashboardLanguage(tNormalizedLanguages, tPreferredLanguage));
   if (tNormalizedLanguages.empty()) tAppendUnique("en");
   tLanguages = tNormalizedLanguages;
+}
+
+std::vector<std::string> ParseDashboardEnabledLanguages(const std::string &tValue, const std::string &tPreferredLanguage) {
+  std::vector<std::string> tLanguages;
+  size_t tStart = 0;
+  while (tStart <= tValue.length()) {
+    const size_t tSeparator = tValue.find('|', tStart);
+    if (tSeparator != std::string::npos) {
+      tLanguages.push_back(tValue.substr(tStart, tSeparator - tStart));
+      tStart = tSeparator + 1;
+      continue;
+    }
+    tLanguages.push_back(tValue.substr(tStart));
+    break;
+  }
+  NormalizeDashboardEnabledLanguages(tLanguages, tPreferredLanguage);
+  return tLanguages;
+}
+
+std::string JoinDashboardEnabledLanguages(const std::vector<std::string> &tLanguages, const std::string &tPreferredLanguage) {
+  std::vector<std::string> tNormalizedLanguages = tLanguages;
+  NormalizeDashboardEnabledLanguages(tNormalizedLanguages, tPreferredLanguage);
+  std::string tJoined;
+  for (size_t tIndex = 0; tIndex < tNormalizedLanguages.size(); tIndex++) {
+    if (tIndex > 0) tJoined += '|';
+    tJoined += tNormalizedLanguages[tIndex];
+  }
+  return tJoined;
 }
 
 void test_SecureStrcmp_identical_strings() {
@@ -533,11 +559,37 @@ void test_NormalizeDashboardEnabledLanguages_keeps_user_disabled_current_languag
 }
 
 void test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode() {
-  std::vector<std::string> tLanguages = { "hu" };
+  std::vector<std::string> tLanguages = { "fr" };
   NormalizeDashboardEnabledLanguages(tLanguages, "hu");
   TEST_ASSERT_EQUAL_UINT32(1, static_cast<uint32_t>(tLanguages.size()));
-  TEST_ASSERT_TRUE(IsDashboardLanguageEnabled(tLanguages, "hu"));
+  TEST_ASSERT_TRUE(IsDashboardLanguageEnabled(tLanguages, "fr"));
   TEST_ASSERT_FALSE(IsDashboardLanguageEnabled(tLanguages, "en"));
+}
+
+void test_NormalizeDashboardLanguageCode_preserves_unknown_codes() {
+  TEST_ASSERT_EQUAL_STRING("fr", NormalizeDashboardLanguageCode("Fr").c_str());
+}
+
+void test_ResolveDashboardLanguage_prefers_configured_language() {
+  std::vector<std::string> tLanguages = { "de", "fr" };
+  TEST_ASSERT_EQUAL_STRING("fr", ResolveDashboardLanguage(tLanguages, "Fr").c_str());
+}
+
+void test_ResolveDashboardLanguage_falls_back_to_first_enabled() {
+  std::vector<std::string> tLanguages = { "de", "fr" };
+  TEST_ASSERT_EQUAL_STRING("de", ResolveDashboardLanguage(tLanguages, "hu").c_str());
+}
+
+void test_ParseDashboardEnabledLanguages_dedupes_and_normalizes() {
+  std::vector<std::string> tParsed = ParseDashboardEnabledLanguages("EN|fr|en||FR", "hu");
+  TEST_ASSERT_EQUAL_UINT32(2, static_cast<uint32_t>(tParsed.size()));
+  TEST_ASSERT_EQUAL_STRING("en", tParsed[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("fr", tParsed[1].c_str());
+}
+
+void test_JoinDashboardEnabledLanguages_keeps_normalized_order() {
+  std::vector<std::string> tLanguages = { "FR", "en", "fr" };
+  TEST_ASSERT_EQUAL_STRING("fr|en", JoinDashboardEnabledLanguages(tLanguages, "hu").c_str());
 }
 
 static const char *kImagesDir = "images";
@@ -764,6 +816,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_IsSameTarget);
   RUN_TEST(test_NormalizeDashboardEnabledLanguages_keeps_user_disabled_current_language_off);
   RUN_TEST(test_NormalizeDashboardEnabledLanguages_preserves_single_language_mode);
+  RUN_TEST(test_NormalizeDashboardLanguageCode_preserves_unknown_codes);
+  RUN_TEST(test_ResolveDashboardLanguage_prefers_configured_language);
+  RUN_TEST(test_ResolveDashboardLanguage_falls_back_to_first_enabled);
+  RUN_TEST(test_ParseDashboardEnabledLanguages_dedupes_and_normalizes);
+  RUN_TEST(test_JoinDashboardEnabledLanguages_keeps_normalized_order);
   RUN_TEST(test_SplitPathAndFile_absolute_path);
   RUN_TEST(test_SplitPathAndFile_root_file);
   RUN_TEST(test_SplitPathAndFile_deep_path);

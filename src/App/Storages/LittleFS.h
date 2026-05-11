@@ -29,7 +29,7 @@ namespace App {
       static std::vector<const char*> GetFilesInDir(const char *tDir, const char *tExt);
       static void InvalidateFileCache();
       void BootstrapVault(bool tVerbose = false);
-      bool Format();
+      bool Format(volatile uint8_t *tProgress = nullptr);
       void PrintListDir(size_t tMaxLines = 15);
       void End();
       size_t GetListPos() { return mListPos; };
@@ -54,6 +54,8 @@ namespace App {
       static size_t mFilesCount;
       static char mFilesLastDir[128];
       static char mFilesLastExt[16];
+      size_t CountEntriesRecursive(const char *tDirPath);
+      bool WipeDirRecursive(const char *tDirPath, volatile uint8_t *tProgress, size_t tTotalEntries, size_t *tProcessedEntries);
       static void Lock();
       static void Unlock();
       void AppendToBuffer(const char *tData, size_t tLength);

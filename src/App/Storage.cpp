@@ -244,4 +244,21 @@ namespace App {
     return LFS.UsedBytes();
   }
 
+  bool Storage_::Format(EFileSystemType tType, volatile uint8_t *tProgress) {
+    Guard tLock;
+    bool tOk = false;
+    if (tType == EFileSystemType::SDCard) {
+      tOk = mSDCardAvailable && SDC.Format(tProgress);
+      mSDCardAvailable = SDC.IsMounted();
+    } else {
+      tOk = mLittleFSAvailable && LFS.Format(tProgress);
+      mLittleFSAvailable = LFS.IsMounted();
+    }
+    if (tOk) {
+      EnsureImagesDir(tType);
+      SelectActiveStorage(false);
+    }
+    return tOk;
+  }
+
 }

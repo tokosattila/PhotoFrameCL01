@@ -49,6 +49,12 @@ namespace App {
       static EDisplayRotate ResolveDisplayRotate(uint16_t tRotate);
       static uint32_t SafeAtoul(const char *tStr, uint32_t tMinVal, uint32_t tMaxVal, uint32_t tDefaultVal);
       static bool HasElapsedMs(uint32_t tStartMs, uint32_t tNowMs, uint32_t tDelayMs);
+      static String NormalizeLanguageCode(const String &tLanguage);
+      static bool IsLanguageEnabled(const std::vector<String> &tLanguages, const String &tLanguage);
+      static String ResolveLanguage(const std::vector<String> &tLanguages, const String &tPreferredLanguage = "en");
+      static void NormalizeEnabledLanguages(std::vector<String> &tLanguages, const String &tPreferredLanguage = "en");
+      static std::vector<String> ParseEnabledLanguages(const String &tValue, const String &tPreferredLanguage = "en");
+      static String JoinEnabledLanguages(const std::vector<String> &tLanguages, const String &tPreferredLanguage = "en");
     private:
       Utils_();
       Utils_(const Utils_&) = delete;

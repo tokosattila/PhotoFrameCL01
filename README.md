@@ -2,7 +2,7 @@
 
 Color e-ink digital photo frame with image management and configuration via a built-in web dashboard. Features deep sleep scheduling with RTC backup, dual OTA firmware update slots, and NVS-backed configuration for extended autonomous operation.
 
-> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git) (**Telnet + FTP** based), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git) (**Telnet + FTP** based).
+> **📌 Note:** This project targets the **Waveshare ESP32-S3-PhotoPainter 7.3 inch E6 Full Color E-paper**. For the grayscale variant based on the **LilyGo T5 4.7 inch E-Paper Plus** ESP32-S3 version, see [PhotoFrameGS02](https://github.com/tokosattila/PhotoFrameGS02.git), for the older **LilyGo T5 4.7 inch E-Paper** WROVER-E version, check out [PhotoFrameGS01](https://github.com/tokosattila/PhotoFrameGS01.git).
 
 The project is designed around three goals:
 1. Low-power autonomous image display with deep sleep.
@@ -19,7 +19,7 @@ The project is designed around three goals:
 |:---:|:---:|
 | *Back cover installed* | *Dashboard video* |
 
-## 3. Hardware
+## 2. Hardware
 
 <table width="100%">
 <tr>
@@ -33,7 +33,7 @@ The project is designed around three goals:
 | **Flash** | 16MB |
 | **PSRAM** | 8MB |
 | **RTC** | PCF8563 I2C RTC chip |
-| **Storage** | SD Card SPI + LittleFS |
+| **Storage** | SD Card SPI |
 | **Audio** | ES8611 I2S DAC audio encoder chip |
 | **Battery** | AXP2101 PMU I2C Li-Ion battery management |
 
@@ -44,7 +44,7 @@ The project is designed around three goals:
 </tr>
 </table>
 
-## 4. System Architecture
+## 3. System Architecture
 
 The runtime is organized into focused modules under `src/App`:
 
@@ -61,9 +61,9 @@ The runtime is organized into focused modules under `src/App`:
 
 The application entrypoint in `src/Main.cpp` orchestrates initialization and mode routing.
 
-## 5. Boot Sequence and Operating Modes
+## 4. Boot Sequence and Operating Modes
 
-### 5.1 Boot Sequence
+### 4.1 Boot Sequence
 
 Startup flow (high level):
 
@@ -72,7 +72,7 @@ Startup flow (high level):
 3. Evaluate low battery condition.
 4. Route into mode based on wake source and button state.
 
-### 5.2 Photo Frame Mode
+### 4.2 Photo Frame Mode
 
 Purpose: autonomous slideshow operation with low power consumption.
 
@@ -87,7 +87,7 @@ Core behavior:
 
 If the current image is missing or unreadable, a built-in fallback image is shown.
 
-### 5.3 Maintenance Mode
+### 4.3 Maintenance Mode
 
 Purpose: online configuration and administration via local web dashboard.
 
@@ -101,7 +101,7 @@ Core behavior:
 
 Maintenance mode is intended for bounded interaction windows, then automatic return to photo-frame behavior.
 
-### 5.4 Low Battery Mode
+### 4.4 Low Battery Mode
 
 Purpose: protect battery and avoid unstable operation.
 
@@ -111,7 +111,7 @@ Core behavior:
 - Draw battery warning state to display.
 - Enter low-power sleep path.
 
-## 6. Configuration
+## 5. Configuration
 
 Configuration is fully NVS-backed via `Preferences`.
 
@@ -130,9 +130,9 @@ Configuration domains include:
 
 Factory reset clears NVS config and reboots.
 
-## 7. Power, Sleep, and Wake Mechanisms
+## 6. Power, Sleep, and Wake Mechanisms
 
-### 7.1 Wake Scheduling
+### 6.1 Wake Scheduling
 
 Timer modes are enum-based and support:
 
@@ -145,13 +145,13 @@ Timer modes are enum-based and support:
 
 For Daily/Weekly/Monthly, `wake_up_hour` is respected; shorter interval modes ignore hour targeting.
 
-### 7.2 Deep Sleep Strategy
+### 6.2 Deep Sleep Strategy
 
 Photo Frame mode calculates sleep target and enters deep sleep after render completion.
 
 Wake sources include timer and button-triggered wake logic.
 
-### 7.3 CPU Frequency Control
+### 6.3 CPU Frequency Control
 
 Baseline in maintenance is 160 MHz.
 
@@ -163,7 +163,7 @@ Dynamic high-performance windows are activated on dashboard workloads:
 
 If no high-demand workload remains active, frequency returns to 160 MHz.
 
-## 8. Session and Security Model
+## 7. Session and Security Model
 
 Dashboard authentication is cookie-token based.
 
@@ -182,7 +182,7 @@ Security notes:
 - Single-admin credential model.
 - Password stored as SHA-256 hash in NVS.
 
-## 9. Maintenance Inactivity Mechanism
+## 8. Maintenance Inactivity Mechanism
 
 Maintenance loop checks last authenticated dashboard activity once per second.
 
@@ -195,7 +195,7 @@ When inactivity reaches `MAINTENANCE_INACTIVITY_TIMEOUT_MS` (currently 5 minutes
 
 This avoids leaving the device in permanent maintenance state.
 
-## 10. Storage and Media Pipeline
+## 9. Storage and Media Pipeline
 
 `Storage_` unifies SD Card and LittleFS behind one interface.
 
@@ -215,7 +215,7 @@ Media operations exposed in dashboard include:
 - Cross-storage copy/swap
 - Set current/default image
 
-## 11. Display Rendering Pipeline
+## 10. Display Rendering Pipeline
 
 `Display_` wraps low-level e-paper driver operations and rendering policies.
 
@@ -227,9 +227,9 @@ Main responsibilities:
 - Rotation support.
 - Controlled update and power-off behavior for e-paper lifecycle.
 
-## 12. Networking and Time Services
+## 11. Networking and Time Services
 
-### 12.1 Connectivity
+### 11.1 Connectivity
 
 `Connection_` supports AP and STA operation with fallback behavior.
 
@@ -240,7 +240,7 @@ Capabilities:
 - Optional mDNS hostname publishing.
 - Client presence checks used by maintenance UX.
 
-### 12.2 Time Management
+### 11.2 Time Management
 
 `NTP_` and `RTC_` cooperate to keep time stable across deep sleep cycles.
 
@@ -248,7 +248,7 @@ Capabilities:
 - RTC stores time persistently with backup source.
 - Wake-hour scheduling uses RTC/system time computations.
 
-## 13. Firmware Update (OTA) and Partitioning
+## 12. Firmware Update (OTA) and Partitioning
 
 Partition design (`partitions.csv`):
 
@@ -269,11 +269,11 @@ This provides rollback-friendly dual-slot behavior for remote updates.
 
 The dashboard also exposes the currently running boot partition in the Stats flash section. The User settings page can select the boot target for the next restart (`OTA 0` or `OTA 1`). A target slot is accepted only when it contains a valid firmware image; empty or invalid OTA slots are rejected before the boot target is changed.
 
-## 14. Dashboard (Detailed)
+## 13. Dashboard (Detailed)
 
 The dashboard is a first-class subsystem with embedded assets and API-driven interactions.
 
-### 14.1 Pages
+### 13.1 Pages
 
 Implemented pages include:
 
@@ -288,13 +288,14 @@ Implemented pages include:
   - Wake-up
   - mDNS
   - Language
-  - User (includes sound, LogManager enable, boot target selection, and other user preferences)
+  - User (includes sound, LogManager enable, boot target selection, storage format (LittleFS / SD), and other user preferences)
 - Stats (includes active boot partition in the Flash section)
+- Logs (browse daily log files by year/month/day, view content, download as `.log`, delete all)
 - Error
 
 These are served from compiled assets (`Dashboard/Pages`, `Dashboard/Assets`, `Dashboard/Languages`).
 
-### 14.2 API Groups
+### 13.2 API Groups
 
 API surface is organized around:
 
@@ -305,9 +306,11 @@ API surface is organized around:
 - Time sync (`/api/ntp/sync`, `/api/rtc/*`)
 - OTA (`/api/ota/*`)
 - Boot target selection (`/api/user/boot-target/save`)
+- Storage format (`/api/user/storage/format`, `/api/user/storage/format/progress`)
+- Logs (`/api/logs`, `/api/logs/day`, `/api/logs/download`, `/api/logs/delete-all`)
 - System actions (`/api/reboot`, `/api/restart`, `/api/factory/reset`)
 
-### 14.3 Runtime Behaviors
+### 13.3 Runtime Behaviors
 
 Dashboard runtime includes:
 
@@ -317,7 +320,7 @@ Dashboard runtime includes:
 - CPU demand marking for performance windows.
 - Activity timestamp updates for inactivity timeout.
 
-### 14.4 Full Endpoint Inventory
+### 13.4 Full Endpoint Inventory
 
 Authentication and navigation:
 
@@ -360,8 +363,17 @@ Status and configuration:
 - `POST /api/user/save`
 - `POST /api/user/restore`
 - `POST /api/user/boot-target/save`
+- `POST /api/user/storage/format`
+- `GET /api/user/storage/format/progress`
 - `POST /api/wakeup/save`
 - `GET /api/stats`
+
+Logs:
+
+- `GET /api/logs`
+- `GET /api/logs/day?year=YYYY&month=MM&day=DD`
+- `GET /api/logs/download?year=YYYY&month=MM&day=DD`
+- `POST /api/logs/delete-all`
 
 OTA and system actions:
 
@@ -378,7 +390,7 @@ WebSocket and static assets:
 - `GET /ws` (WebSocket upgrade)
 - Static pages, scripts, styles, SVG/images, and language assets served from embedded PROGMEM resources
 
-## 15. Build and Deployment
+## 14. Build and Deployment
 
 Project uses PlatformIO (`platformio.ini`) with `photo_frame_cl_01` as default env.
 
@@ -399,18 +411,18 @@ pio run -e photo_frame_cl_01 -t uploadfs
 pio device monitor
 ```
 
-## 16. Tooling and Utility Scripts
+## 15. Tooling and Utility Scripts
 
 `scripts/` contains project tooling for asset and firmware workflows:
 
 - `firmware.py`: post-build firmware artifact handling.
+- `ConvertTo6C/`: palette conversion utilities for Spectra6 preparation.
 - `bmp6_to_hex.py`: bitmap conversion to project-friendly C representation.
 - `fontconvert.py`: font asset conversion pipeline.
-- `ConvertTo6C/`: palette conversion utilities for Spectra6 preparation.
 
 These tools support repeatable asset preparation and deployment packaging.
 
-## 17. Dependencies
+## 16. Dependencies
 
 Project dependencies are managed via PlatformIO's library system (`platformio.ini`):
 

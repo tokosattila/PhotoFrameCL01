@@ -55,6 +55,13 @@ namespace App {
     mCachedIndexGalleryCount = 0;
     mCachedIndexStoragesJson = "\"Storages\":[]";
     mCachedPageStatsDataJson = "\"Statistics\":{}";
+    mStorageFormatProgress = 0;
+    mStorageFormatActive = false;
+    mStorageFormatDone = false;
+    mStorageFormatSuccess = false;
+    mStorageFormatType = EFileSystemType::SDCard;
+    mStorageFormatMessage[0] = '\0';
+    mStorageFormatTarget[0] = '\0';
     mCachedStatusJson[0] = '\0';
     mCachedStatsJson[0] = '\0';
     strncpy(mCachedUser, mCfg.Dashboard.User.c_str(), sizeof(mCachedUser) - 1);
@@ -799,7 +806,7 @@ namespace App {
     if (tBootPartitionText[0]) {
       tJson += "\"Value\":\"";
       tJson += EscapeJsonText(String(tBootPartitionText));
-      tJson += "\"";
+      tJson += '"';
     } else tJson += "\"ValueKey\":\"not_available\"";
     tJson += "}]},";
     tJson += "{\"LabelKey\":\"storage\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"";
@@ -953,8 +960,17 @@ namespace App {
         tJson += EscapeJsonText(tDashboardEnabledLanguages[tIndex]);
         tJson += "\"";
       }
+      tJson += "],\"AvailableLanguages\":[";
+      const std::vector<String> tAvailableLanguages = DashboardUtils_::GetAvailableLanguageCodes();
+      for (size_t tIndex = 0; tIndex < tAvailableLanguages.size(); tIndex++) {
+        if (tIndex > 0) tJson += ",";
+        tJson += "\"";
+        tJson += EscapeJsonText(tAvailableLanguages[tIndex]);
+        tJson += "\"";
+      }
+      tJson += "]";
       if (tPageKey == "user") {
-        tJson += "],\"Theme\":\"";
+        tJson += ",\"Theme\":\"";
         tJson += EscapeJsonText(tConfig.Dashboard.Theme);
         tJson += "\",\"ShowDescription\":";
         tJson += tConfig.Dashboard.ShowDescription ? "true" : "false";
@@ -962,16 +978,46 @@ namespace App {
         tJson += tConfig.Device.SoundEnabled ? "true" : "false";
         tJson += ",\"LogManagerEnabled\":";
         tJson += tConfig.Device.LogManagerEnabled ? "true" : "false";
-        tJson += "},\"Storage\":{\"FallbackEnabled\":";
-        tJson += tConfig.Storage.FallbackEnabled ? "true" : "false";
-        tJson += ",\"Default\":\"";
-        tJson += EscapeJsonText(tStorageDefaultKey);
-        tJson += "\"},\"Boot\":{\"Target\":\"";
-        const esp_partition_t *tBootPartition = esp_ota_get_boot_partition();
-        const char *tBootTarget = (tBootPartition && tBootPartition->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "ota_1" : "ota_0";
-        tJson += tBootTarget;
-        tJson += "\"}";
-      } else tJson += "]}";
+        tJson += "}";
+      } else tJson += "}";
+    } else if (tPageKey == "storage") {
+      tJson += "\"Storage\":{\"FallbackEnabled\":";
+      tJson += tConfig.Storage.FallbackEnabled ? "true" : "false";
+      tJson += ",\"Default\":\"";
+      tJson += EscapeJsonText(tStorageDefaultKey);
+      tJson += "\"},\"Boot\":{\"Target\":\"";
+      const esp_partition_t *tBootPartition = esp_ota_get_boot_partition();
+      const char *tBootTarget = (tBootPartition && tBootPartition->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "ota_1" : "ota_0";
+      tJson += tBootTarget;
+      tJson += "\"},\"EnabledLanguages\":[";
+      {
+        std::vector<String> tStoragePageLanguages = tConfig.Dashboard.EnabledLanguages;
+        DashboardUtils_::NormalizeEnabledLanguages(tStoragePageLanguages, tDashboardLanguage);
+        for (size_t tIndex = 0; tIndex < tStoragePageLanguages.size(); tIndex++) {
+          if (tIndex > 0) tJson += ",";
+          tJson += "\"";
+          tJson += EscapeJsonText(tStoragePageLanguages[tIndex]);
+          tJson += "\"";
+        }
+      }
+      tJson += "]";
+    } else if (tPageKey == "logs") {
+      std::vector<SLogDate> tDates;
+      LGM.ListAvailableDates(tDates);
+      tJson += "\"Logs\":{\"Storage\":\"";
+      tJson += STG.IsSDCard() ? "sd_card" : "littlefs";
+      tJson += "\",\"Dates\":[";
+      for (size_t tIndex = 0; tIndex < tDates.size(); tIndex++) {
+        if (tIndex > 0) tJson += ",";
+        tJson += "{\"Year\":";
+        tJson += String(static_cast<unsigned>(tDates[tIndex].Year));
+        tJson += ",\"Month\":";
+        tJson += String(static_cast<unsigned>(tDates[tIndex].Month));
+        tJson += ",\"Day\":";
+        tJson += String(static_cast<unsigned>(tDates[tIndex].Day));
+        tJson += "}";
+      }
+      tJson += "]}";
     }
   }
 
@@ -1464,11 +1510,29 @@ namespace App {
     mServer.on("/api/user/boot-target/save", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       HandleUserBootTargetSave(tRequest);
     });
+    mServer.on("/api/user/storage/format", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      HandleUserStorageFormat(tRequest);
+    });
+    mServer.on("/api/user/storage/format/progress", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      HandleUserStorageFormatProgress(tRequest);
+    });
     mServer.on("/api/wakeup/save", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
       HandleWakeUpSave(tRequest);
     });
     mServer.on("/api/stats", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
       HandleStats(tRequest);
+    });
+    mServer.on("/api/logs/day", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      HandleLogsDay(tRequest);
+    });
+    mServer.on("/api/logs/download", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      HandleLogsDownload(tRequest);
+    });
+    mServer.on("/api/logs/delete-all", HTTP_POST, [this](AsyncWebServerRequest *tRequest) {
+      HandleLogsDeleteAll(tRequest);
+    });
+    mServer.on("/api/logs", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
+      HandleLogsList(tRequest);
     });
     mServer.on("/api/ota/status", HTTP_GET, [this](AsyncWebServerRequest *tRequest) {
       MarkHighPerformanceRequest(EHighPerformanceWorkload::Ota);
@@ -2048,23 +2112,37 @@ namespace App {
     }
     SAppConfig tConfig = CFG.Get<SAppConfig>();
     String tLanguage;
-    if (!TryGetRequestValue(tRequest, "language[default]", tLanguage)) {
+    std::vector<String> tEnabledLanguages = GetRequestValues(tRequest, "enabled_languages[]");
+    const bool tLanguageProvided = TryGetRequestValue(tRequest, "language[default]", tLanguage);
+    const bool tEnabledLanguagesProvided = !tEnabledLanguages.empty();
+    if (!tLanguageProvided && !tEnabledLanguagesProvided) {
       DashboardUtils_::ErrorResponse(tRequest, 400, "language_save_error");
       return;
     }
     tLanguage.trim();
     tLanguage.toLowerCase();
-    if (tLanguage != "en" && tLanguage != "hu") {
+    if (tLanguageProvided && !DashboardUtils_::NormalizeLanguageCode(tLanguage).length()) {
       DashboardUtils_::ErrorResponse(tRequest, 400, "language_save_error");
       return;
     }
-    tConfig.Dashboard.Language = tLanguage;
-    DashboardUtils_::NormalizeEnabledLanguages(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language);
+    if (tEnabledLanguagesProvided) {
+      DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tLanguageProvided ? tLanguage : tConfig.Dashboard.Language);
+      if (tEnabledLanguages.empty()) {
+        DashboardUtils_::ErrorResponse(tRequest, 400, "language_one_required");
+        return;
+      }
+      tConfig.Dashboard.EnabledLanguages = tEnabledLanguages;
+      tConfig.Dashboard.Language = DashboardUtils_::ResolveLanguage(tConfig.Dashboard.EnabledLanguages, tLanguageProvided ? tLanguage : tConfig.Dashboard.Language);
+    } else if (tLanguageProvided) {
+      tConfig.Dashboard.Language = DashboardUtils_::NormalizeLanguageCode(tLanguage);
+      if (!DashboardUtils_::IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language)) tConfig.Dashboard.Language = "en";
+    }
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, "language_save_error");
       return;
     }
     ReloadConfig();
+    LGM.ReloadConfig();
     DashboardUtils_::OkResponse(tRequest, "language_save_success");
   }
 
@@ -2137,6 +2215,7 @@ namespace App {
     DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tConfig.Dashboard.Language);
     tConfig.Dashboard.EnabledLanguages = tEnabledLanguages;
     tConfig.Dashboard.Language = DashboardUtils_::ResolveLanguage(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language);
+    if (!DashboardUtils_::IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language)) tConfig.Dashboard.Language = "en";
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, "user_save_error");
       return;
@@ -2208,6 +2287,122 @@ namespace App {
       return;
     }
     DashboardUtils_::OkResponse(tRequest, "boot_target_save_success");
+  }
+
+  bool Dashboard_::StartStorageFormatTask(EFileSystemType tType, const char *tTargetKey) {
+    if (mStorageFormatActive) return false;
+    mStorageFormatProgress = 0;
+    mStorageFormatActive = true;
+    mStorageFormatDone = false;
+    mStorageFormatSuccess = false;
+    mStorageFormatType = tType;
+    strncpy(mStorageFormatTarget, tTargetKey ? tTargetKey : "", sizeof(mStorageFormatTarget) - 1);
+    mStorageFormatTarget[sizeof(mStorageFormatTarget) - 1] = '\0';
+    mStorageFormatMessage[0] = '\0';
+    BaseType_t tTaskOk = xTaskCreate(
+      Dashboard_::RunStorageFormatTask,
+      "storage-format",
+      8192,
+      this,
+      1,
+      nullptr);
+    if (tTaskOk != pdPASS) {
+      mStorageFormatActive = false;
+      strncpy(mStorageFormatMessage, "format_storage_error", sizeof(mStorageFormatMessage) - 1);
+      mStorageFormatMessage[sizeof(mStorageFormatMessage) - 1] = '\0';
+      return false;
+    }
+    return true;
+  }
+
+  void Dashboard_::RunStorageFormatTask(void *tContext) {
+    Dashboard_ *tDashboard = static_cast<Dashboard_ *>(tContext);
+    if (!tDashboard) {
+      vTaskDelete(nullptr);
+      return;
+    }
+    EFileSystemType tType = tDashboard->mStorageFormatType;
+    bool tOk = STG.Format(tType, &tDashboard->mStorageFormatProgress);
+    {
+      Dashboard_::Guard tLock;
+      tDashboard->mStorageFormatProgress = 100;
+      tDashboard->mStorageFormatActive = false;
+      tDashboard->mStorageFormatDone = true;
+      tDashboard->mStorageFormatSuccess = tOk;
+      tDashboard->mIndexDataCacheDirty = true;
+      tDashboard->mStatsCacheDirty = true;
+      const char *tMessageKey = tOk
+        ? (tType == EFileSystemType::SDCard ? "format_sd_card_success" : "format_littlefs_success")
+        : (tType == EFileSystemType::SDCard ? "format_sd_card_error" : "format_littlefs_error");
+      strncpy(tDashboard->mStorageFormatMessage, tMessageKey, sizeof(tDashboard->mStorageFormatMessage) - 1);
+      tDashboard->mStorageFormatMessage[sizeof(tDashboard->mStorageFormatMessage) - 1] = '\0';
+    }
+    vTaskDelete(nullptr);
+  }
+
+  void Dashboard_::HandleUserStorageFormat(AsyncWebServerRequest *tRequest) {
+    Guard tLock;
+    if (!AuthorizeRequest(tRequest)) {
+      DashboardUtils_::UnauthorizedResponse(tRequest);
+      return;
+    }
+    if (mStorageFormatActive) {
+      DashboardUtils_::ErrorResponse(tRequest, 409, "format_storage_busy");
+      return;
+    }
+    String tValue;
+    if (!TryGetRequestValue(tRequest, "user[storage][target]", tValue)) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "format_storage_error");
+      return;
+    }
+    const String tStorageKey = NormalizeStorageKey(tValue);
+    EFileSystemType tType = EFileSystemType::SDCard;
+    const char *tTargetKey = "sd_card";
+    if (tStorageKey == "littlefs") {
+      if (!mCfg.Storage.FallbackEnabled) {
+        DashboardUtils_::ErrorResponse(tRequest, 400, "format_littlefs_requires_fallback");
+        return;
+      }
+      tType = EFileSystemType::LittleFS;
+      tTargetKey = "littlefs";
+      if (!LFS.IsMounted()) {
+        DashboardUtils_::ErrorResponse(tRequest, 400, "format_storage_unavailable");
+        return;
+      }
+    } else if (tStorageKey == "sd_card") {
+      if (!SDC.IsMounted()) {
+        DashboardUtils_::ErrorResponse(tRequest, 400, "format_storage_unavailable");
+        return;
+      }
+    } else {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "format_storage_error");
+      return;
+    }
+    if (!StartStorageFormatTask(tType, tTargetKey)) {
+      DashboardUtils_::ErrorResponse(tRequest, 500, "format_storage_error");
+      return;
+    }
+    DashboardUtils_::OkResponse(tRequest, "format_storage_started");
+  }
+
+  void Dashboard_::HandleUserStorageFormatProgress(AsyncWebServerRequest *tRequest) {
+    Guard tLock;
+    if (!AuthorizeRequest(tRequest)) {
+      DashboardUtils_::UnauthorizedResponse(tRequest);
+      return;
+    }
+    char tJson[320] = "";
+    snprintf(
+      tJson,
+      sizeof(tJson),
+      "{\"ok\":true,\"error\":false,\"active\":%s,\"done\":%s,\"success\":%s,\"progress\":%u,\"target\":\"%s\",\"message\":\"%s\"}",
+      mStorageFormatActive ? "true" : "false",
+      mStorageFormatDone ? "true" : "false",
+      mStorageFormatSuccess ? "true" : "false",
+      static_cast<unsigned>(mStorageFormatProgress),
+      mStorageFormatTarget,
+      mStorageFormatMessage);
+    DashboardUtils_::JsonResponse(tRequest, 200, tJson);
   }
 
   void Dashboard_::HandleWakeUpSave(AsyncWebServerRequest *tRequest) {
@@ -3054,6 +3249,110 @@ namespace App {
     }
     if (!tJson[0]) strncpy(tJson, "{}", sizeof(tJson) - 1);
     DashboardUtils_::JsonResponse(tRequest, 200, tJson);
+  }
+
+  void Dashboard_::HandleLogsList(AsyncWebServerRequest *tRequest) {
+    {
+      Guard tLock;
+      if (!AuthorizeRequest(tRequest)) {
+        DashboardUtils_::UnauthorizedResponse(tRequest);
+        return;
+      }
+    }
+    std::vector<SLogDate> tDates;
+    LGM.ListAvailableDates(tDates);
+    String tJson;
+    tJson.reserve(96 + tDates.size() * 40);
+    tJson += "{\"ok\":true,\"error\":false,\"Logs\":{\"Storage\":\"";
+    tJson += STG.IsSDCard() ? "sd_card" : "littlefs";
+    tJson += "\",\"Dates\":[";
+    for (size_t tIndex = 0; tIndex < tDates.size(); tIndex++) {
+      if (tIndex > 0) tJson += ",";
+      tJson += "{\"Year\":";
+      tJson += String(static_cast<unsigned>(tDates[tIndex].Year));
+      tJson += ",\"Month\":";
+      tJson += String(static_cast<unsigned>(tDates[tIndex].Month));
+      tJson += ",\"Day\":";
+      tJson += String(static_cast<unsigned>(tDates[tIndex].Day));
+      tJson += "}";
+    }
+    tJson += "]}}";
+    DashboardUtils_::JsonResponse(tRequest, 200, tJson.c_str());
+  }
+
+  void Dashboard_::HandleLogsDay(AsyncWebServerRequest *tRequest) {
+    {
+      Guard tLock;
+      if (!AuthorizeRequest(tRequest)) {
+        DashboardUtils_::UnauthorizedResponse(tRequest);
+        return;
+      }
+    }
+    if (!tRequest->hasParam("year") || !tRequest->hasParam("month") || !tRequest->hasParam("day")) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "internal_error");
+      return;
+    }
+    const long tYear = tRequest->getParam("year")->value().toInt();
+    const long tMonth = tRequest->getParam("month")->value().toInt();
+    const long tDay = tRequest->getParam("day")->value().toInt();
+    if (tYear < 2000 || tYear > 2999 || tMonth < 1 || tMonth > 12 || tDay < 1 || tDay > 31) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "internal_error");
+      return;
+    }
+    String tContent;
+    LGM.ReadDayContent(static_cast<uint16_t>(tYear), static_cast<uint8_t>(tMonth), static_cast<uint8_t>(tDay), tContent);
+    AsyncWebServerResponse *tResponse = tRequest->beginResponse(200, "text/plain; charset=utf-8", tContent);
+    tResponse->addHeader("Cache-Control", "no-store,no-cache,must-revalidate,post-check=0,pre-check=0");
+    tResponse->addHeader("Pragma", "no-cache");
+    tResponse->addHeader("Expires", "0");
+    tRequest->send(tResponse);
+  }
+
+  void Dashboard_::HandleLogsDownload(AsyncWebServerRequest *tRequest) {
+    {
+      Guard tLock;
+      if (!AuthorizeRequest(tRequest)) {
+        DashboardUtils_::UnauthorizedResponse(tRequest);
+        return;
+      }
+    }
+    if (!tRequest->hasParam("year") || !tRequest->hasParam("month") || !tRequest->hasParam("day")) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "internal_error");
+      return;
+    }
+    const long tYear = tRequest->getParam("year")->value().toInt();
+    const long tMonth = tRequest->getParam("month")->value().toInt();
+    const long tDay = tRequest->getParam("day")->value().toInt();
+    if (tYear < 2000 || tYear > 2999 || tMonth < 1 || tMonth > 12 || tDay < 1 || tDay > 31) {
+      DashboardUtils_::ErrorResponse(tRequest, 400, "internal_error");
+      return;
+    }
+    String tContent;
+    LGM.ReadDayContent(static_cast<uint16_t>(tYear), static_cast<uint8_t>(tMonth), static_cast<uint8_t>(tDay), tContent);
+    AsyncWebServerResponse *tResponse = tRequest->beginResponse(200, "text/plain; charset=utf-8", tContent);
+    char tDisposition[96] = "";
+    snprintf(tDisposition, sizeof(tDisposition), "attachment; filename=\"%04u%02u%02u.log\"", static_cast<unsigned>(tYear), static_cast<unsigned>(tMonth), static_cast<unsigned>(tDay));
+    tResponse->addHeader("Content-Disposition", tDisposition);
+    tResponse->addHeader("Cache-Control", "no-store,no-cache,must-revalidate,post-check=0,pre-check=0");
+    tResponse->addHeader("Pragma", "no-cache");
+    tResponse->addHeader("Expires", "0");
+    tRequest->send(tResponse);
+  }
+
+  void Dashboard_::HandleLogsDeleteAll(AsyncWebServerRequest *tRequest) {
+    {
+      Guard tLock;
+      if (!AuthorizeRequest(tRequest)) {
+        DashboardUtils_::UnauthorizedResponse(tRequest);
+        return;
+      }
+    }
+    const bool tOk = LGM.DeleteAllLogs();
+    if (!tOk) {
+      DashboardUtils_::ErrorResponse(tRequest, 500, "delete_all_logs_error");
+      return;
+    }
+    DashboardUtils_::OkResponse(tRequest, "delete_all_logs_success");
   }
 
   void Dashboard_::HandleImageRename(AsyncWebServerRequest *tRequest) {

@@ -31,6 +31,7 @@ namespace App {
       const char *NormalizePath(const char *tPath);
       uint64_t TotalBytes();
       uint64_t UsedBytes();
+      bool Format(EFileSystemType tType, volatile uint8_t *tProgress = nullptr);
     private:
       Storage_();
       ~Storage_();

@@ -12,6 +12,7 @@
 #include <App/Dashboard/Assets/Js/Index.h>
 #include <App/Dashboard/Assets/Js/Language.h>
 #include <App/Dashboard/Assets/Js/Login.h>
+#include <App/Dashboard/Assets/Js/Logs.h>
 #include <App/Dashboard/Assets/Js/Mdns.h>
 #include <App/Dashboard/Assets/Js/Network.h>
 #include <App/Dashboard/Assets/Js/Ntp.h>
@@ -19,6 +20,7 @@
 #include <App/Dashboard/Assets/Js/Stats.h>
 #include <App/Dashboard/Assets/Js/User.h>
 #include <App/Dashboard/Assets/Js/WakeUp.h>
+#include <App/Dashboard/Assets/Js/Storage.h>
 #include <App/Dashboard/Assets/Images/Favicon.h>
 #include <App/Dashboard/Assets/Images/Logo.h>
 #include <App/Dashboard/Assets/Images/LogoDev.h>
@@ -38,12 +40,14 @@ namespace App {
       { "/assets/js/index.js", "application/javascript", DashboardJs::Index },
       { "/assets/js/language.js", "application/javascript", DashboardJs::Language },
       { "/assets/js/login.js", "application/javascript", DashboardJs::Login },
+      { "/assets/js/logs.js", "application/javascript", DashboardJs::Logs },
       { "/assets/js/mdns.js", "application/javascript", DashboardJs::Mdns },
       { "/assets/js/network.js", "application/javascript", DashboardJs::Network },
       { "/assets/js/ntp.js", "application/javascript", DashboardJs::Ntp },
       { "/assets/js/settings.js", "application/javascript", DashboardJs::Settings },
       { "/assets/js/stats.js", "application/javascript", DashboardJs::Stats },
       { "/assets/js/user.js", "application/javascript", DashboardJs::User },
+      { "/assets/js/storage.js", "application/javascript", DashboardJs::Storage },
       { "/assets/js/wakeup.js", "application/javascript", DashboardJs::WakeUp },
       { "/assets/js/wake-up.js", "application/javascript", DashboardJs::WakeUp },
       { "/favicon.svg", "image/svg+xml", DashboardImages::Favicon },

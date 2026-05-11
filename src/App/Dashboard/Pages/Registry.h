@@ -5,6 +5,7 @@
 #include <App/Dashboard/Pages/Index.h>
 #include <App/Dashboard/Pages/Settings.h>
 #include <App/Dashboard/Pages/Stats.h>
+#include <App/Dashboard/Pages/Logs.h>
 #include <App/Dashboard/Pages/Firmware.h>
 #include <App/Dashboard/Pages/Display.h>
 #include <App/Dashboard/Pages/Network.h>
@@ -13,6 +14,7 @@
 #include <App/Dashboard/Pages/DateTime.h>
 #include <App/Dashboard/Pages/Language.h>
 #include <App/Dashboard/Pages/User.h>
+#include <App/Dashboard/Pages/Storage.h>
 #include <App/Dashboard/Pages/WakeUp.h>
 #include <App/Dashboard/Pages/Login.h>
 
@@ -22,6 +24,7 @@ namespace App {
       { "index", "gallery", "icon-images", "/index.html", "/", "/assets/js/index.js", DashboardPageIndex::Main, DashboardPageIndex::Extra, true, true },
       { "settings", "settings", "icon-gear", "/settings.html", "/settings", "/assets/js/settings.js", DashboardPageSettings::Main, DashboardPageSettings::Extra, true, false },
       { "stats", "statistics", "icon-database", "/stats.html", "/stats", "/assets/js/stats.js", DashboardPageStats::Main, DashboardPageStats::Extra, true, true },
+      { "logs", "logs", "icon-card-text", "/logs.html", "/logs", "/assets/js/logs.js", DashboardPageLogs::Main, DashboardPageLogs::Extra, true, true },
       { "firmware", "firmware", "icon-code-square", "/settings/firmware.html", "/settings/firmware", "/assets/js/firmware.js", DashboardPageFirmware::Main, DashboardPageFirmware::Extra, true, false },
       { "display", "display", "icon-cast", "/settings/display.html", "/settings/display", "/assets/js/display.js", DashboardPageDisplay::Main, DashboardPageDisplay::Extra, true, false },
       { "network", "network", "icon-router", "/settings/network.html", "/settings/network", "/assets/js/network.js", DashboardPageNetwork::Main, DashboardPageNetwork::Extra, true, false },
@@ -30,6 +33,7 @@ namespace App {
       { "datetime", "date_and_time", "icon-clock", "/settings/datetime.html", "/settings/datetime", "/assets/js/datetime.js", DashboardPageDateTime::Main, DashboardPageDateTime::Extra, true, false },
       { "language", "language", "icon-translate", "/settings/language.html", "/settings/language", "/assets/js/language.js", DashboardPageLanguage::Main, DashboardPageLanguage::Extra, true, false },
       { "user", "user", "icon-person-square", "/settings/user.html", "/settings/user", "/assets/js/user.js", DashboardPageUser::Main, DashboardPageUser::Extra, true, false },
+      { "storage", "storage", "icon-hdd", "/settings/storage.html", "/settings/storage", "/assets/js/storage.js", DashboardPageStorage::Main, DashboardPageStorage::Extra, true, false },
       { "wakeup", "wake_up", "icon-bell", "/settings/wakeup.html", "/settings/wakeup", "/assets/js/wakeup.js", DashboardPageWakeUp::Main, DashboardPageWakeUp::Extra, true, false },
       { "login", "sign_in", "icon-box-arrow-in-right", "/login.html", "/login", "/assets/js/login.js", DashboardPageLogin::Main, DashboardPageLogin::Extra, false, false }
     };

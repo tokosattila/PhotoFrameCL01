@@ -289,17 +289,98 @@ namespace App {
     if (tVerbose) PrintListDir();
   }
 
-  bool LittleFS_::Format() {
+  size_t LittleFS_::CountEntriesRecursive(const char *tDirPath) {
+    if (!tDirPath || tDirPath[0] == '\0') return 0;
+    File tDir = LittleFS.open(NormalizePath(tDirPath), FILE_READ);
+    if (!tDir || !tDir.isDirectory()) {
+      tDir.close();
+      return 0;
+    }
+    size_t tTotal = 0;
+    File tEntry = tDir.openNextFile();
+    while (tEntry) {
+      const bool tIsDir = tEntry.isDirectory();
+      char tEntryPath[256] = "";
+      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
+      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      File tNext = tDir.openNextFile();
+      tEntry.close();
+      if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
+        tEntry = tNext;
+        continue;
+      }
+      if (tIsDir) tTotal += CountEntriesRecursive(tEntryPath) + 1;
+      else tTotal += 1;
+      tEntry = tNext;
+    }
+    tDir.close();
+    return tTotal;
+  }
+
+  bool LittleFS_::WipeDirRecursive(const char *tDirPath, volatile uint8_t *tProgress, size_t tTotalEntries, size_t *tProcessedEntries) {
+    if (!tDirPath || tDirPath[0] == '\0') return false;
+    File tDir = LittleFS.open(NormalizePath(tDirPath), FILE_READ);
+    if (!tDir || !tDir.isDirectory()) {
+      tDir.close();
+      return false;
+    }
+    auto tUpdateProgress = [&]() {
+      if (!tProgress || !tProcessedEntries || tTotalEntries == 0) return;
+      const size_t tDone = *tProcessedEntries;
+      const uint8_t tValue = static_cast<uint8_t>(constrain((int)((tDone * 95U) / tTotalEntries), 0, 95));
+      *tProgress = tValue;
+    };
+    bool tAllOk = true;
+    File tEntry = tDir.openNextFile();
+    while (tEntry) {
+      const bool tIsDir = tEntry.isDirectory();
+      char tEntryPath[256] = "";
+      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
+      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      File tNext = tDir.openNextFile();
+      tEntry.close();
+      if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
+        tEntry = tNext;
+        continue;
+      }
+      if (tIsDir) {
+        if (!WipeDirRecursive(tEntryPath, tProgress, tTotalEntries, tProcessedEntries)) tAllOk = false;
+        if (!LittleFS.rmdir(tEntryPath)) tAllOk = false;
+      } else {
+        if (!LittleFS.remove(tEntryPath)) tAllOk = false;
+      }
+      if (tProcessedEntries) {
+        (*tProcessedEntries)++;
+        tUpdateProgress();
+      }
+      tEntry = tNext;
+    }
+    tDir.close();
+    return tAllOk;
+  }
+
+  bool LittleFS_::Format(volatile uint8_t *tProgress) {
     Guard tLock;
+    InvalidateFileCache();
+    if (tProgress) *tProgress = 0;
+    const size_t tTotalEntries = CountEntriesRecursive("/");
+    size_t tProcessedEntries = 0;
+    bool tWipeOk = true;
+    if (tTotalEntries > 0) tWipeOk = WipeDirRecursive("/", tProgress, tTotalEntries, &tProcessedEntries);
+    if (!tWipeOk) xLOG("LittleFS wipe failed before format");
+    if (tProgress) *tProgress = 96;
     LittleFS.end();
     bool tOk = LittleFS.format();
     if (tOk) {
+      if (tProgress) *tProgress = 98;
       tOk = LittleFS.begin(false, kMountLabel, kMaxFiles, kPartLabel);
       if (tOk) xLOG("Formatted and remounted");
       else xLOG("Formatted but remount failed");
     } else {
       xLOG("Format failed");
     }
+    InvalidateFileCache();
+    if (tProgress) *tProgress = 100;
     return tOk;
   }
 

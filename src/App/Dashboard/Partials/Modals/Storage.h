@@ -1,0 +1,14 @@
+#ifndef DASHBOARD_PARTIALS_MODALS_STORAGE_H
+#define DASHBOARD_PARTIALS_MODALS_STORAGE_H
+
+#include <App/Global.h>
+
+namespace App {
+  namespace DashboardStorageModals {
+    const char Extra[] PROGMEM = R"PAGE(
+<div id=storage-default-confirm-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=default_storage></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_default_storage_change></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-primary" data-modal-close data-storage-default-confirm data-t=save></a></div></div></div><div id=storage-boot-target-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=boot_partition></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_boot_target_change></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-primary" data-modal-close data-storage-boot-target-confirm data-t=save></a></div></div></div><div id=storage-format-sd-confirm-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=format_sd_card></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_format_sd_card></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-danger" data-storage-format-confirm data-storage-format-target=sd_card data-t=format_sd_card></a></div></div></div><div id=storage-format-littlefs-confirm-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=format_littlefs></span><div class=modal-close data-modal-close role=button aria-label data-t-aria-label=close></div></div><div class=modal-body><p data-t=confirm_format_littlefs></p></div><div class=modal-footer><a href=# class=button data-modal-close data-t=close></a><a href=# class="button button-danger" data-storage-format-confirm data-storage-format-target=littlefs data-t=format_littlefs></a></div></div></div><div id=storage-format-progress-modal class=modal><div class=modal-dialog><div class=modal-header><span data-t=formatting_storage></span></div><div class=modal-body><div class=upload-progress data-storage-format-progress-root aria-live=polite><small class=upload-progress-title data-storage-format-progress-title data-t=formatting_storage></small><div class=upload-progress-inline><div class=upload-progress-track><div class=upload-progress-fill data-storage-format-progress-fill style="width:0%"></div></div><span class=upload-progress-percent data-storage-format-progress-percent>0%</span></div></div></div></div></div>
+)PAGE";
+  }
+}
+
+#endif
