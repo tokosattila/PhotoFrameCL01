@@ -235,7 +235,6 @@ namespace App {
       }
 
       static String BuildSidebar(const SDashboardPageDefinition &tPage, const SAppConfig &tConfig) {
-        (void)tConfig;
         String tHtml;
         tHtml.reserve(4096);
         tHtml += "<div class=dashboard-sidebar-backdrop></div><aside class=dashboard-sidebar><div class=\"dashboard-sidebar-navbar display-medium\"><div class=navbar>";
@@ -249,7 +248,7 @@ namespace App {
         tHtml += kDocumentationUrl;
         tHtml += "\"><i class=\"icon icon-book\"></i><span class=nav-item-text data-t=documentation></span></a></div></div><div class=\"nav nav-tree\"><div class=nav-label data-t=system_tools></div>";
         tHtml += RenderNavItem("stats", tPage.Key, "icon-database", "statistics");
-        tHtml += RenderNavItem("logs", tPage.Key, "icon-card-text", "logs");
+        if (tConfig.Device.LogManagerEnabled) tHtml += RenderNavItem("logs", tPage.Key, "icon-card-text", "logs");
         tHtml += RenderNavItem("firmware", tPage.Key, "icon-code-square", "firmware");
         tHtml += "</div><div class=\"nav nav-tree display-medium\"><div class=nav-item><div class=nav-link data-modal=#restart-modal><i class=\"icon icon-arrow-repeat\"></i><span class=nav-item-text data-t=restart></span></div></div></div><div class=\"nav nav-tree display-medium\"><div class=nav-item><div class=nav-link data-modal=#logout-modal><i class=\"icon icon-box-arrow-left\"></i><span class=nav-item-text data-t=logout></span></div></div></div></aside>";
         return tHtml;

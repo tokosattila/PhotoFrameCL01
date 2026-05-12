@@ -1987,7 +1987,6 @@ namespace App {
       return;
     }
     ReloadConfig();
-    CON.ReloadConfig();
     DashboardUtils_::OkResponse(tRequest, "network_save_success");
   }
 
@@ -2206,16 +2205,6 @@ namespace App {
     }
     if (TryGetRequestValue(tRequest, "user[storage][fallback_enabled]", tValue)) tConfig.Storage.FallbackEnabled = ParseBoolValue(tValue);
     if (TryGetRequestValue(tRequest, "user[storage][default]", tValue)) tConfig.Storage.DefaultFileSystem = NormalizeStorageKey(tValue) == "sd_card" ? EFileSystemType::SDCard : EFileSystemType::LittleFS;
-    std::vector<String> tEnabledLanguages = GetRequestValues(tRequest, "user[languages][enabled][]");
-    if (tEnabledLanguages.empty()) tEnabledLanguages = GetRequestValues(tRequest, "enabled_languages[]");
-    if (tEnabledLanguages.empty()) {
-      DashboardUtils_::ErrorResponse(tRequest, 400, "language_one_required");
-      return;
-    }
-    DashboardUtils_::NormalizeEnabledLanguages(tEnabledLanguages, tConfig.Dashboard.Language);
-    tConfig.Dashboard.EnabledLanguages = tEnabledLanguages;
-    tConfig.Dashboard.Language = DashboardUtils_::ResolveLanguage(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language);
-    if (!DashboardUtils_::IsLanguageEnabled(tConfig.Dashboard.EnabledLanguages, tConfig.Dashboard.Language)) tConfig.Dashboard.Language = "en";
     if (!CFG.SaveAllConfig(tConfig)) {
       DashboardUtils_::ErrorResponse(tRequest, 500, "user_save_error");
       return;

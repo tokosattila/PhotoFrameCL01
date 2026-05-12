@@ -257,6 +257,7 @@ namespace App {
     if (tOk) {
       EnsureImagesDir(tType);
       SelectActiveStorage(false);
+      if (tType == mCfg.Storage.DefaultFileSystem) CFG.SaveImageName("");
     }
     return tOk;
   }

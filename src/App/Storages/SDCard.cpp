@@ -316,7 +316,10 @@ namespace App {
 
   size_t SDCard_::CountEntriesRecursive(const char *tDirPath) {
     if (!tDirPath || tDirPath[0] == '\0') return 0;
-    File tDir = SD.open(NormalizePath(tDirPath), FILE_READ);
+    char tBaseDir[256] = "";
+    strncpy(tBaseDir, NormalizePath(tDirPath), sizeof(tBaseDir) - 1);
+    tBaseDir[sizeof(tBaseDir) - 1] = '\0';
+    File tDir = SD.open(tBaseDir, FILE_READ);
     if (!tDir || !tDir.isDirectory()) {
       tDir.close();
       return 0;
@@ -325,9 +328,10 @@ namespace App {
     File tEntry = tDir.openNextFile();
     while (tEntry) {
       const bool tIsDir = tEntry.isDirectory();
+      const char *tName = GetFileName(tEntry.name());
       char tEntryPath[256] = "";
-      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
-      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      if (strcmp(tBaseDir, "/") == 0) snprintf(tEntryPath, sizeof(tEntryPath), "/%s", tName);
+      else snprintf(tEntryPath, sizeof(tEntryPath), "%s/%s", tBaseDir, tName);
       File tNext = tDir.openNextFile();
       tEntry.close();
       if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
@@ -344,7 +348,10 @@ namespace App {
 
   bool SDCard_::WipeDirRecursive(const char *tDirPath, volatile uint8_t *tProgress, size_t tTotalEntries, size_t *tProcessedEntries) {
     if (!tDirPath || tDirPath[0] == '\0') return false;
-    File tDir = SD.open(NormalizePath(tDirPath), FILE_READ);
+    char tBaseDir[256] = "";
+    strncpy(tBaseDir, NormalizePath(tDirPath), sizeof(tBaseDir) - 1);
+    tBaseDir[sizeof(tBaseDir) - 1] = '\0';
+    File tDir = SD.open(tBaseDir, FILE_READ);
     if (!tDir || !tDir.isDirectory()) {
       tDir.close();
       return false;
@@ -359,9 +366,10 @@ namespace App {
     File tEntry = tDir.openNextFile();
     while (tEntry) {
       const bool tIsDir = tEntry.isDirectory();
+      const char *tName = GetFileName(tEntry.name());
       char tEntryPath[256] = "";
-      strncpy(tEntryPath, NormalizePath(tEntry.name()), sizeof(tEntryPath) - 1);
-      tEntryPath[sizeof(tEntryPath) - 1] = '\0';
+      if (strcmp(tBaseDir, "/") == 0) snprintf(tEntryPath, sizeof(tEntryPath), "/%s", tName);
+      else snprintf(tEntryPath, sizeof(tEntryPath), "%s/%s", tBaseDir, tName);
       File tNext = tDir.openNextFile();
       tEntry.close();
       if (tEntryPath[0] == '\0' || strcmp(tEntryPath, "/") == 0) {
