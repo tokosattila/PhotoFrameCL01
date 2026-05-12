@@ -1,4 +1,4 @@
-﻿# Photo Frame CL01 [ Spectra E6 Color E-Ink ]
+﻿# Photo Frame CL01 — [ Spectra E6 Color E-Ink ]
 
 Color e-ink digital photo frame with image management and configuration via a built-in web dashboard. Features deep sleep scheduling with RTC backup, dual OTA firmware update slots, and NVS-backed configuration for extended autonomous operation.
 
