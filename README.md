@@ -15,7 +15,7 @@ The project is designed around three goals:
 |:---:|:---:|
 | *Photo frame in operation* | *Hardware back side* |
 
-| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | <a href="https://github.com/user-attachments/assets/76fc9947-8c29-450a-8fff-99deb275520e"><img src="docs/images/pic04.jpg" alt="Dashboard" width="390px" /></a> |
+| <img src="docs/images/pic03.jpg" width="390px" alt="Photo Frame Back Side" /> | <a href="https://github.com/user-attachments/assets/69b8939e-2276-4475-bbd3-a53bc80cb025"><img src="docs/images/pic04.jpg" alt="Dashboard" width="390px" /></a> |
 |:---:|:---:|
 | *Back cover installed* | *Dashboard video* |
 
@@ -157,9 +157,9 @@ Baseline in maintenance is 160 MHz.
 
 Dynamic high-performance windows are activated on dashboard workloads:
 
-- Page navigation: 6 s hold
-- Media/image operations: 10 s hold
-- OTA operations: 45 s hold
+- Page navigation: 6s hold
+- Media/image operations: 10s hold
+- OTA operations: 45s hold
 
 If no high-demand workload remains active, frequency returns to 160 MHz.
 
