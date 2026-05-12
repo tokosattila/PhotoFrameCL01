@@ -288,7 +288,8 @@ Implemented pages include:
   - Wake-up
   - mDNS
   - Language
-  - User (includes sound, LogManager enable, boot target selection, storage format (LittleFS / SD), and other user preferences)
+  - User (includes sound, LogManager enable, and other user preferences)
+  - Storage (default storage selection, fallback toggle, format LittleFS / SD, boot target selection)
 - Stats (includes active boot partition in the Flash section)
 - Logs (browse daily log files by year/month/day, view content, download as `.log`, delete all)
 - Error
