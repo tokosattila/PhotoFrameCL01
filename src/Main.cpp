@@ -66,9 +66,15 @@ class Application {
       #endif
       UTL.DisableBT();
       if (RTC.Init(true) && RTC.IsAvailable()) {
+        UTL.SetBootRtcReady(true);
+        if (UTL.WasWokenByRtcAlarm()) xLOG("Wake source RTC alarm");
+        RTC.ClearAlarmFlag();
         RTC.SyncToSystem();
         RTC.End();
-      } else RTC.End();
+      } else {
+        UTL.SetBootRtcReady(false);
+        RTC.End();
+      }
       BAT.Init(true);
       const bool tBatteryAvailable = BAT.IsAvailable();
       const bool tBatteryConnected = tBatteryAvailable && BAT.IsBatteryConnected();

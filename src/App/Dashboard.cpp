@@ -839,6 +839,11 @@ namespace App {
     tJson += "},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"bluetooth\",\"ValueKey\":\"";
     tJson += tBluetoothEnabled ? "enabled_state" : "not_enabled_state";
     tJson += "\"}]},";
+    tJson += "{\"LabelKey\":\"wakeup_status\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"last_wake_source\",\"ValueKey\":\"";
+    tJson += UTL.GetLastWakeSourceKey();
+    tJson += "\"},{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"rtc_alarm\",\"ValueKey\":\"";
+    tJson += UTL.WasBootRtcReady() ? "rtc_alarm_armed" : "rtc_alarm_unavailable";
+    tJson += "\"}]},";
     tJson += "{\"LabelKey\":\"power\",\"Rows\":[{\"Icon\":\"icon-caret-right\",\"LabelKey\":\"battery\",";
     if (tBatteryConnected) {
       tJson += "\"Value\":\"";

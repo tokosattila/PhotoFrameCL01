@@ -134,6 +134,155 @@ namespace App {
     return false;
   }
 
+  bool RTC_::ReadRegister(uint8_t tReg, uint8_t &tValue) {
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(tReg);
+      if (Wire.endTransmission() != 0) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      if (Wire.requestFrom(kAddress, (uint8_t)1) < 1) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      tValue = Wire.read();
+      return true;
+    }
+    return false;
+  }
+
+  bool RTC_::WriteRegister(uint8_t tReg, uint8_t tValue) {
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(tReg);
+      Wire.write(tValue);
+      if (Wire.endTransmission() == 0) return true;
+      vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+    }
+    return false;
+  }
+
+  bool RTC_::WriteAlarmRegisters(const SAlarmSpec &tSpec) {
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(kRegAlarmSecond);
+      Wire.write(kBitAen);
+      uint8_t tMinReg = DecToBcd(tSpec.Minute) & 0x7F;
+      if (!tSpec.EnableMinute) tMinReg |= kBitAen;
+      Wire.write(tMinReg);
+      uint8_t tHourReg = DecToBcd(tSpec.Hour) & 0x3F;
+      if (!tSpec.EnableHour) tHourReg |= kBitAen;
+      Wire.write(tHourReg);
+      uint8_t tDayReg = DecToBcd(tSpec.Day) & 0x3F;
+      if (!tSpec.EnableDay) tDayReg |= kBitAen;
+      Wire.write(tDayReg);
+      uint8_t tWdReg = DecToBcd(tSpec.Weekday) & 0x07;
+      if (!tSpec.EnableWeekday) tWdReg |= kBitAen;
+      Wire.write(tWdReg);
+      if (Wire.endTransmission() == 0) return true;
+      vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+    }
+    return false;
+  }
+
+  bool RTC_::ReadAlarmRegisters(SAlarmSpec &tSpec) {
+    I2CBusGuard tBusLock;
+    for (uint8_t tTry = 0; tTry < kI2CRetryCount; tTry++) {
+      Wire.beginTransmission(kAddress);
+      Wire.write(kRegAlarmSecond);
+      if (Wire.endTransmission() != 0) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      if (Wire.requestFrom(kAddress, (uint8_t)5) < 5) {
+        vTaskDelay(DELAY_ULTRA_SHORT_MS / portTICK_PERIOD_MS);
+        continue;
+      }
+      Wire.read();
+      uint8_t tMinRaw = Wire.read();
+      uint8_t tHourRaw = Wire.read();
+      uint8_t tDayRaw = Wire.read();
+      uint8_t tWdRaw = Wire.read();
+      tSpec.EnableMinute = ((tMinRaw & kBitAen) == 0);
+      tSpec.EnableHour = ((tHourRaw & kBitAen) == 0);
+      tSpec.EnableDay = ((tDayRaw & kBitAen) == 0);
+      tSpec.EnableWeekday = ((tWdRaw & kBitAen) == 0);
+      tSpec.Minute = BcdToDec(tMinRaw & 0x7F);
+      tSpec.Hour = BcdToDec(tHourRaw & 0x3F);
+      tSpec.Day = BcdToDec(tDayRaw & 0x3F);
+      tSpec.Weekday = BcdToDec(tWdRaw & 0x07);
+      return true;
+    }
+    return false;
+  }
+
+  bool RTC_::SetAlarm(const SAlarmSpec &tSpec) {
+    Guard tLock;
+    if (!mAvailable) return false;
+    uint8_t tCtrl2 = 0;
+    if (!ReadRegister(kRegControl2, tCtrl2)) {
+      xLOG("RTC SetAlarm: Control_2 read failed");
+      return false;
+    }
+    uint8_t tCtrl2Cleared = (uint8_t)((tCtrl2 & ~(kBitAie | kBitAf)));
+    if (!WriteRegister(kRegControl2, tCtrl2Cleared)) {
+      xLOG("RTC SetAlarm: Control_2 disable write failed");
+      return false;
+    }
+    if (!WriteAlarmRegisters(tSpec)) {
+      xLOG("RTC SetAlarm: alarm registers write failed");
+      return false;
+    }
+    uint8_t tCtrl2Enable = (uint8_t)((tCtrl2Cleared | kBitAie) & ~kBitAf);
+    if (!WriteRegister(kRegControl2, tCtrl2Enable)) {
+      xLOG("RTC SetAlarm: Control_2 enable write failed");
+      return false;
+    }
+    return true;
+  }
+
+  bool RTC_::DisableAlarm() {
+    Guard tLock;
+    if (!mAvailable) return false;
+    uint8_t tCtrl2 = 0;
+    if (!ReadRegister(kRegControl2, tCtrl2)) return false;
+    uint8_t tCtrl2New = (uint8_t)(tCtrl2 & ~(kBitAie | kBitAf));
+    if (!WriteRegister(kRegControl2, tCtrl2New)) return false;
+    SAlarmSpec tNone;
+    tNone.EnableMinute = false;
+    tNone.EnableHour = false;
+    tNone.EnableDay = false;
+    tNone.EnableWeekday = false;
+    return WriteAlarmRegisters(tNone);
+  }
+
+  bool RTC_::ClearAlarmFlag() {
+    Guard tLock;
+    if (!mAvailable) return false;
+    uint8_t tCtrl2 = 0;
+    if (!ReadRegister(kRegControl2, tCtrl2)) return false;
+    uint8_t tCtrl2New = (uint8_t)(tCtrl2 & ~kBitAf);
+    return WriteRegister(kRegControl2, tCtrl2New);
+  }
+
+  bool RTC_::IsAlarmTriggered() {
+    Guard tLock;
+    if (!mAvailable) return false;
+    uint8_t tCtrl2 = 0;
+    if (!ReadRegister(kRegControl2, tCtrl2)) return false;
+    return ((tCtrl2 & kBitAf) != 0);
+  }
+
+  bool RTC_::GetAlarm(SAlarmSpec &tSpec) {
+    Guard tLock;
+    if (!mAvailable) return false;
+    return ReadAlarmRegisters(tSpec);
+  }
+
   bool RTC_::IsDateTimePlausible(const SRTCDateTime &tDateTime) {
     if (tDateTime.Second > 59) return false;
     if (tDateTime.Minute > 59) return false;

@@ -151,6 +151,12 @@ Photo Frame mode calculates sleep target and enters deep sleep after render comp
 
 Wake sources include timer and button-triggered wake logic.
 
+The next wake moment is derived from the active timer mode and current time, using the RTC when available and falling back to the system clock otherwise.
+
+When the RTC is responsive, the scheduled moment is also programmed as a hardware alarm and used as the primary wake source, with the timer kept as a small safety margin. When the RTC is missing or unresponsive, the timer alone drives the wake, with no user-visible configuration change.
+
+On every wake-up, the firmware identifies the trigger and routes accordingly: the maintenance button enters Maintenance mode, the next-image button advances the gallery, and a scheduled wake (RTC alarm or timer fallback) continues normal Photo Frame operation.
+
 ### 6.3 CPU Frequency Control
 
 Baseline in maintenance is 160 MHz.
@@ -290,7 +296,7 @@ Implemented pages include:
   - Language
   - User (includes sound, LogManager enable, and other user preferences)
   - Storage (default storage selection, fallback toggle, format LittleFS / SD, boot target selection)
-- Stats (includes active boot partition in the Flash section)
+- Stats (includes active boot partition in the Flash section, and a Wake-up status section showing the last wake source and whether the RTC alarm is armed or unavailable)
 - Logs (browse daily log files by year/month/day, view content, download as `.log`, delete all)
 - Error
 

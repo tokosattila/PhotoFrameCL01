@@ -95,6 +95,69 @@ static bool CanSyncEpochToSystem(unsigned long tEpoch) {
   return true;
 }
 
+struct SAlarmSpec {
+  uint8_t Minute = 0;
+  uint8_t Hour = 0;
+  uint8_t Day = 1;
+  uint8_t Weekday = 0;
+  bool EnableMinute = true;
+  bool EnableHour = true;
+  bool EnableDay = true;
+  bool EnableWeekday = false;
+};
+
+static const uint8_t kBitAie = 0x80;
+static const uint8_t kBitAf = 0x40;
+static const uint8_t kBitAen = 0x80;
+
+struct SAlarmRegs {
+  uint8_t Second;
+  uint8_t Minute;
+  uint8_t Hour;
+  uint8_t Day;
+  uint8_t Weekday;
+};
+
+static SAlarmRegs EncodeAlarmRegs(const SAlarmSpec &tSpec) {
+  SAlarmRegs tRegs = {};
+  tRegs.Second = kBitAen;
+  tRegs.Minute = static_cast<uint8_t>(DecToBcd(tSpec.Minute) & 0x7F);
+  if (!tSpec.EnableMinute) tRegs.Minute |= kBitAen;
+  tRegs.Hour = static_cast<uint8_t>(DecToBcd(tSpec.Hour) & 0x3F);
+  if (!tSpec.EnableHour) tRegs.Hour |= kBitAen;
+  tRegs.Day = static_cast<uint8_t>(DecToBcd(tSpec.Day) & 0x3F);
+  if (!tSpec.EnableDay) tRegs.Day |= kBitAen;
+  tRegs.Weekday = static_cast<uint8_t>(DecToBcd(tSpec.Weekday) & 0x07);
+  if (!tSpec.EnableWeekday) tRegs.Weekday |= kBitAen;
+  return tRegs;
+}
+
+static SAlarmSpec DecodeAlarmRegs(const SAlarmRegs &tRegs) {
+  SAlarmSpec tSpec;
+  tSpec.EnableMinute = ((tRegs.Minute & kBitAen) == 0);
+  tSpec.EnableHour = ((tRegs.Hour & kBitAen) == 0);
+  tSpec.EnableDay = ((tRegs.Day & kBitAen) == 0);
+  tSpec.EnableWeekday = ((tRegs.Weekday & kBitAen) == 0);
+  tSpec.Minute = BcdToDec(tRegs.Minute & 0x7F);
+  tSpec.Hour = BcdToDec(tRegs.Hour & 0x3F);
+  tSpec.Day = BcdToDec(tRegs.Day & 0x3F);
+  tSpec.Weekday = BcdToDec(tRegs.Weekday & 0x07);
+  return tSpec;
+}
+
+static uint8_t ApplyAlarmEnable(uint8_t tCtrl2Prev) {
+  uint8_t tCleared = static_cast<uint8_t>(tCtrl2Prev & ~(kBitAie | kBitAf));
+  return static_cast<uint8_t>((tCleared | kBitAie) & ~kBitAf);
+}
+
+static uint8_t ApplyAlarmDisable(uint8_t tCtrl2Prev) {
+  return static_cast<uint8_t>(tCtrl2Prev & ~(kBitAie | kBitAf));
+}
+
+static uint8_t ApplyClearAlarmFlag(uint8_t tCtrl2Prev) {
+  return static_cast<uint8_t>(tCtrl2Prev & ~kBitAf);
+}
+
 void test_Bcd_roundtrip_0_to_99() {
   for (uint8_t tValue = 0; tValue <= 99; tValue++) TEST_ASSERT_EQUAL_UINT8(tValue, BcdToDec(DecToBcd(tValue)));
 }
@@ -165,6 +228,107 @@ void test_CanSyncEpochToSystem_bounds() {
   TEST_ASSERT_FALSE(CanSyncEpochToSystem(kMaxSigned32Epoch + 1UL));
 }
 
+void test_AlarmRegs_encode_all_enabled() {
+  SAlarmSpec tSpec;
+  tSpec.Minute = 30;
+  tSpec.Hour = 6;
+  tSpec.Day = 15;
+  tSpec.Weekday = 3;
+  tSpec.EnableMinute = true;
+  tSpec.EnableHour = true;
+  tSpec.EnableDay = true;
+  tSpec.EnableWeekday = true;
+  SAlarmRegs tRegs = EncodeAlarmRegs(tSpec);
+  TEST_ASSERT_EQUAL_UINT8(kBitAen, tRegs.Second);
+  TEST_ASSERT_EQUAL_UINT8(0x30, tRegs.Minute);
+  TEST_ASSERT_EQUAL_UINT8(0x06, tRegs.Hour);
+  TEST_ASSERT_EQUAL_UINT8(0x15, tRegs.Day);
+  TEST_ASSERT_EQUAL_UINT8(0x03, tRegs.Weekday);
+}
+
+void test_AlarmRegs_encode_weekday_disabled_sets_AEN() {
+  SAlarmSpec tSpec;
+  tSpec.Minute = 0;
+  tSpec.Hour = 22;
+  tSpec.Day = 1;
+  tSpec.Weekday = 0;
+  tSpec.EnableMinute = true;
+  tSpec.EnableHour = true;
+  tSpec.EnableDay = true;
+  tSpec.EnableWeekday = false;
+  SAlarmRegs tRegs = EncodeAlarmRegs(tSpec);
+  TEST_ASSERT_EQUAL_UINT8(kBitAen, tRegs.Second);
+  TEST_ASSERT_EQUAL_UINT8(0x00, tRegs.Minute);
+  TEST_ASSERT_EQUAL_UINT8(0x22, tRegs.Hour);
+  TEST_ASSERT_EQUAL_UINT8(0x01, tRegs.Day);
+  TEST_ASSERT_EQUAL_UINT8(kBitAen, tRegs.Weekday);
+}
+
+void test_AlarmRegs_encode_all_disabled() {
+  SAlarmSpec tSpec;
+  tSpec.EnableMinute = false;
+  tSpec.EnableHour = false;
+  tSpec.EnableDay = false;
+  tSpec.EnableWeekday = false;
+  SAlarmRegs tRegs = EncodeAlarmRegs(tSpec);
+  TEST_ASSERT_TRUE((tRegs.Minute & kBitAen) != 0);
+  TEST_ASSERT_TRUE((tRegs.Hour & kBitAen) != 0);
+  TEST_ASSERT_TRUE((tRegs.Day & kBitAen) != 0);
+  TEST_ASSERT_TRUE((tRegs.Weekday & kBitAen) != 0);
+}
+
+void test_AlarmRegs_roundtrip() {
+  SAlarmSpec tIn;
+  tIn.Minute = 45;
+  tIn.Hour = 23;
+  tIn.Day = 31;
+  tIn.Weekday = 6;
+  tIn.EnableMinute = true;
+  tIn.EnableHour = true;
+  tIn.EnableDay = false;
+  tIn.EnableWeekday = true;
+  SAlarmRegs tRegs = EncodeAlarmRegs(tIn);
+  SAlarmSpec tOut = DecodeAlarmRegs(tRegs);
+  TEST_ASSERT_EQUAL_UINT8(tIn.Minute, tOut.Minute);
+  TEST_ASSERT_EQUAL_UINT8(tIn.Hour, tOut.Hour);
+  TEST_ASSERT_EQUAL_UINT8(tIn.Weekday, tOut.Weekday);
+  TEST_ASSERT_TRUE(tOut.EnableMinute);
+  TEST_ASSERT_TRUE(tOut.EnableHour);
+  TEST_ASSERT_FALSE(tOut.EnableDay);
+  TEST_ASSERT_TRUE(tOut.EnableWeekday);
+}
+
+void test_Ctrl2_apply_alarm_enable_preserves_other_bits() {
+  uint8_t tCtrl2Prev = 0x09;
+  uint8_t tCtrl2New = ApplyAlarmEnable(tCtrl2Prev);
+  TEST_ASSERT_EQUAL_UINT8(kBitAie | 0x09, tCtrl2New);
+  TEST_ASSERT_FALSE((tCtrl2New & kBitAf) != 0);
+}
+
+void test_Ctrl2_apply_alarm_enable_clears_existing_AF() {
+  uint8_t tCtrl2Prev = kBitAf | 0x01;
+  uint8_t tCtrl2New = ApplyAlarmEnable(tCtrl2Prev);
+  TEST_ASSERT_TRUE((tCtrl2New & kBitAie) != 0);
+  TEST_ASSERT_FALSE((tCtrl2New & kBitAf) != 0);
+  TEST_ASSERT_EQUAL_UINT8(0x01, tCtrl2New & 0x3F);
+}
+
+void test_Ctrl2_apply_alarm_disable_clears_AIE_and_AF() {
+  uint8_t tCtrl2Prev = kBitAie | kBitAf | 0x05;
+  uint8_t tCtrl2New = ApplyAlarmDisable(tCtrl2Prev);
+  TEST_ASSERT_FALSE((tCtrl2New & kBitAie) != 0);
+  TEST_ASSERT_FALSE((tCtrl2New & kBitAf) != 0);
+  TEST_ASSERT_EQUAL_UINT8(0x05, tCtrl2New);
+}
+
+void test_Ctrl2_apply_clear_alarm_flag_preserves_AIE() {
+  uint8_t tCtrl2Prev = kBitAie | kBitAf | 0x02;
+  uint8_t tCtrl2New = ApplyClearAlarmFlag(tCtrl2Prev);
+  TEST_ASSERT_TRUE((tCtrl2New & kBitAie) != 0);
+  TEST_ASSERT_FALSE((tCtrl2New & kBitAf) != 0);
+  TEST_ASSERT_EQUAL_UINT8(kBitAie | 0x02, tCtrl2New);
+}
+
 void setUp(void) {}
 
 void tearDown(void) {}
@@ -178,5 +342,13 @@ int main(int argc, char **argv) {
   RUN_TEST(test_EpochToDateTime_known_values);
   RUN_TEST(test_Epoch_DateTime_roundtrip);
   RUN_TEST(test_CanSyncEpochToSystem_bounds);
+  RUN_TEST(test_AlarmRegs_encode_all_enabled);
+  RUN_TEST(test_AlarmRegs_encode_weekday_disabled_sets_AEN);
+  RUN_TEST(test_AlarmRegs_encode_all_disabled);
+  RUN_TEST(test_AlarmRegs_roundtrip);
+  RUN_TEST(test_Ctrl2_apply_alarm_enable_preserves_other_bits);
+  RUN_TEST(test_Ctrl2_apply_alarm_enable_clears_existing_AF);
+  RUN_TEST(test_Ctrl2_apply_alarm_disable_clears_AIE_and_AF);
+  RUN_TEST(test_Ctrl2_apply_clear_alarm_flag_preserves_AIE);
   return UNITY_END();
 }

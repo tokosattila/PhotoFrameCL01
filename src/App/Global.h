@@ -104,6 +104,7 @@ namespace App {
     Btn1 = 4U,
     Btn2 = 0U,
     Btn3 = 5U,
+    RtcIntPin = 6U,
     ActLedPin = 42U,
     I2CSdaPin = 47U,
     I2CSclPin = 48U,
@@ -258,6 +259,33 @@ namespace App {
     STimerConfig() = default;
   };
 
+  struct SRTCDateTime {
+    uint8_t Second = 0;
+    uint8_t Minute = 0;
+    uint8_t Hour = 0;
+    uint8_t DayOfWeek = 0;
+    uint8_t Day = 1;
+    uint8_t Month = 1;
+    uint16_t Year = 2026;
+  };
+
+  struct SAlarmSpec {
+    uint8_t Minute = 0;
+    uint8_t Hour = 0;
+    uint8_t Day = 1;
+    uint8_t Weekday = 0;
+    bool EnableMinute = true;
+    bool EnableHour = true;
+    bool EnableDay = true;
+    bool EnableWeekday = false;
+  };
+
+  struct SWakeSchedule {
+    SRTCDateTime NextWake;
+    uint32_t DelaySeconds = 0;
+    SAlarmSpec Alarm;
+  };
+
   struct SStorageConfig {
     EFileSystemType DefaultFileSystem = EFileSystemType::SDCard;
     bool FallbackEnabled = true;
@@ -338,6 +366,7 @@ namespace App {
   static constexpr uint8_t RTC_ADDRESS = 0x51;
   constexpr uint8_t RTC_SDA_PIN = static_cast<uint8_t>(EDevicePins::I2CSdaPin);
   constexpr uint8_t RTC_SCL_PIN = static_cast<uint8_t>(EDevicePins::I2CSclPin);
+  constexpr uint8_t RTC_INT_PIN = static_cast<uint8_t>(EDevicePins::RtcIntPin);
 
   static constexpr uint8_t POWER_OUTPUT_ADDRESS = 0x34;
   constexpr uint8_t AXP_SDA_PIN = static_cast<uint8_t>(EDevicePins::I2CSdaPin);
@@ -386,6 +415,7 @@ namespace App {
 #include <App/Storage.h>
 #include <App/NTP.h>
 #include <App/RTC.h>
+#include <App/WakeScheduler.h>
 #include <App/Battery.h>
 #include <App/Connection.h>
 #include <App/Firmware.h>
@@ -417,5 +447,6 @@ namespace App {
 #define FWU Firmware_::Instance()
 #define DSH Dashboard_::Instance()
 #define LGM LogManager_::Instance()
+#define WSC WakeScheduler_::Instance()
 
 #endif

@@ -43,6 +43,10 @@ namespace App {
       void SleepAndWakeup();
       uint64_t SecondsUntilHour(uint8_t tTargetHour);
       static bool WasWokenByPin(uint8_t tPin);
+      static bool WasWokenByRtcAlarm();
+      static const char *GetLastWakeSourceKey();
+      static void SetBootRtcReady(bool tReady);
+      static bool WasBootRtcReady();
       static bool SecureStrcmp(const char *tA, const char *tB);
       static const char *GetLeafName(const char *tPath);
       static bool EqualsIgnoreCase(const char *tLeft, const char *tRight);

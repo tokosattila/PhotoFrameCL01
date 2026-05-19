@@ -552,9 +552,49 @@ namespace App {
   }
 
   bool Utils_::WasWokenByPin(uint8_t tPin) {
+    const esp_sleep_wakeup_cause_t tCause = esp_sleep_get_wakeup_cause();
+    if (tCause == ESP_SLEEP_WAKEUP_EXT0) {
+      return tPin == static_cast<uint8_t>(EDevicePins::Btn3);
+    }
+    if (tCause == ESP_SLEEP_WAKEUP_EXT1) {
+      const uint64_t tStatus = esp_sleep_get_ext1_wakeup_status();
+      return (tStatus & (1ULL << tPin)) != 0;
+    }
+    return false;
+  }
+
+  bool Utils_::WasWokenByRtcAlarm() {
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return false;
     const uint64_t tStatus = esp_sleep_get_ext1_wakeup_status();
-    return (tStatus & (1ULL << tPin)) != 0;
+    return (tStatus & (1ULL << RTC_INT_PIN)) != 0;
+  }
+
+  namespace {
+    bool gBootRtcReady = false;
+  }
+
+  void Utils_::SetBootRtcReady(bool tReady) {
+    gBootRtcReady = tReady;
+  }
+
+  bool Utils_::WasBootRtcReady() {
+    return gBootRtcReady;
+  }
+
+  const char *Utils_::GetLastWakeSourceKey() {
+    const esp_sleep_wakeup_cause_t tCause = esp_sleep_get_wakeup_cause();
+    switch (tCause) {
+      case ESP_SLEEP_WAKEUP_TIMER: return "wake_src_timer";
+      case ESP_SLEEP_WAKEUP_EXT0: return "wake_src_setting_btn";
+      case ESP_SLEEP_WAKEUP_EXT1: {
+        const uint64_t tStatus = esp_sleep_get_ext1_wakeup_status();
+        if (tStatus & (1ULL << RTC_INT_PIN)) return "wake_src_rtc_alarm";
+        if (tStatus & (1ULL << static_cast<uint8_t>(EDevicePins::Btn1))) return "wake_src_next_img_btn";
+        return "wake_src_other";
+      }
+      case ESP_SLEEP_WAKEUP_UNDEFINED: return "wake_src_power_on";
+      default: return "wake_src_other";
+    }
   }
 
   uint64_t Utils_::SecondsUntilHour(uint8_t tTargetHour) {
@@ -576,65 +616,84 @@ namespace App {
   }
 
   void Utils_::SleepAndWakeup() {
-    constexpr uint64_t tSecToUs = 1000000ULL;
-    uint64_t tDelaySec = 0;
-    uint8_t tHour = mCfg.Timer.WakeUpHour % 24;
-    switch (mCfg.Timer.WakeUp) {
-      case ETimerWakeUp::Minutes:
-        tDelaySec = SECONDS_PER_MINUTE;
-        break;
-      case ETimerWakeUp::Hourly:
-        tDelaySec = SECONDS_PER_HOUR;
-        break;
-      case ETimerWakeUp::HalfDay:
-        tDelaySec = 12 * SECONDS_PER_HOUR;
-        break;
-      case ETimerWakeUp::Daily:
-        tDelaySec = SecondsUntilHour(tHour);
-        break;
-      case ETimerWakeUp::Weekly:
-        tDelaySec = SecondsUntilHour(tHour) + 6 * SECONDS_PER_DAY;
-        break;
-      case ETimerWakeUp::Monthly:
-        tDelaySec = SecondsUntilHour(tHour) + 29 * SECONDS_PER_DAY;
-        break;
-      default:
-        tDelaySec = SecondsUntilHour(tHour);
-        break;
+    constexpr uint64_t kSecToUs = 1000000ULL;
+    constexpr unsigned long kMinValidEpoch = 1735689600UL;
+    const uint8_t tHour = mCfg.Timer.WakeUpHour % 24;
+    const uint8_t tSettingPin = static_cast<uint8_t>(mCfg.Device.SettingPin);
+    const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
+    const uint8_t tRtcIntPin = RTC_INT_PIN;
+    SRTCDateTime tNow;
+    bool tNowValid = false;
+    bool tRtcReady = false;
+    if (RTC.Init(false) && RTC.IsAvailable()) {
+      tRtcReady = true;
+      if (RTC.GetDateTime(tNow)) tNowValid = true;
     }
+    if (!tNowValid) {
+      time_t tEpoch = static_cast<time_t>(time(nullptr));
+      if (static_cast<unsigned long>(tEpoch) >= kMinValidEpoch) {
+        RTC_::EpochToDateTime(static_cast<unsigned long>(tEpoch), tNow);
+        tNowValid = true;
+      }
+    }
+    SWakeSchedule tPlan;
+    bool tPlanValid = tNowValid && WSC.Compute(mCfg.Timer, tNow, tPlan);
+    uint64_t tDelaySec = 0;
+    if (tPlanValid) {
+      tDelaySec = tPlan.DelaySeconds;
+    } else {
+      switch (mCfg.Timer.WakeUp) {
+        case ETimerWakeUp::Minutes: tDelaySec = SECONDS_PER_MINUTE; break;
+        case ETimerWakeUp::Hourly:  tDelaySec = SECONDS_PER_HOUR; break;
+        case ETimerWakeUp::HalfDay: tDelaySec = 12 * SECONDS_PER_HOUR; break;
+        case ETimerWakeUp::Daily:   tDelaySec = SecondsUntilHour(tHour); break;
+        case ETimerWakeUp::Weekly:  tDelaySec = SecondsUntilHour(tHour) + 6 * SECONDS_PER_DAY; break;
+        case ETimerWakeUp::Monthly: tDelaySec = SecondsUntilHour(tHour) + 29 * SECONDS_PER_DAY; break;
+        default:                    tDelaySec = SecondsUntilHour(tHour); break;
+      }
+    }
+    bool tAlarmArmed = false;
+    if (tRtcReady && tPlanValid) {
+      RTC.ClearAlarmFlag();
+      if (RTC.SetAlarm(tPlan.Alarm)) tAlarmArmed = true;
+      else RTC.DisableAlarm();
+    } else if (tRtcReady) {
+      RTC.DisableAlarm();
+      RTC.ClearAlarmFlag();
+    }
+    if (tRtcReady) RTC.End();
     const char *tUnit = "sec";
     uint64_t tDisplay = tDelaySec;
-    if (tDisplay >= 7 * SECONDS_PER_DAY) { 
-      tDisplay /= SECONDS_PER_DAY; 
-      tUnit = "day";   
-    } else 
-    if (tDisplay >= SECONDS_PER_DAY) { 
-      tDisplay /= SECONDS_PER_DAY; 
-      tUnit = "day"; 
-    } else 
-    if (tDisplay >= SECONDS_PER_HOUR) { 
-      tDisplay /= SECONDS_PER_HOUR;  
-      tUnit = "hour"; 
-    } else 
-    if (tDisplay >= SECONDS_PER_MINUTE) { 
-      tDisplay /= SECONDS_PER_MINUTE;
-      tUnit = "min";
-    }
+    if (tDisplay >= SECONDS_PER_DAY) { tDisplay /= SECONDS_PER_DAY; tUnit = "day"; }
+    else if (tDisplay >= SECONDS_PER_HOUR) { tDisplay /= SECONDS_PER_HOUR; tUnit = "hour"; }
+    else if (tDisplay >= SECONDS_PER_MINUTE) { tDisplay /= SECONDS_PER_MINUTE; tUnit = "min"; }
     xLOG("Going to deep sleep...");
-    xLOG("Wake-up → hour%02u:00", tHour);
-    xLOG("Next wake-up → %llu %s\n\n", tDisplay, tUnit);
-    const uint8_t tWakePin = static_cast<uint8_t>(mCfg.Device.SettingPin);
-    const uint8_t tNextImgPin = static_cast<uint8_t>(mCfg.Device.NextImgPin);
+    xLOG("Wake source → %s", tAlarmArmed ? "RTC alarm (EXT1 LOW) + timer fallback" : "ESP32 timer");
+    if (tPlanValid) {
+      xLOG("Next wake → %04u-%02u-%02u %02u:%02u:%02u",
+        tPlan.NextWake.Year, tPlan.NextWake.Month, tPlan.NextWake.Day,
+        tPlan.NextWake.Hour, tPlan.NextWake.Minute, tPlan.NextWake.Second);
+    } else {
+      xLOG("Wake hour target → %02u:00", tHour);
+    }
+    xLOG("Sleep duration → %llu %s\n\n", tDisplay, tUnit);
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tNextImgPin));
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(tNextImgPin));
-    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(tNextImgPin), 0);
-    const uint64_t tWakeMask = (1ULL << tWakePin);
-    rtc_gpio_pullup_dis(static_cast<gpio_num_t>(tWakePin));
-    rtc_gpio_pulldown_en(static_cast<gpio_num_t>(tWakePin));
-    esp_sleep_enable_ext1_wakeup(tWakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
-    esp_sleep_enable_timer_wakeup(tDelaySec * tSecToUs);
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(tRtcIntPin));
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(tRtcIntPin));
+    const uint64_t tExt1Mask = (1ULL << tNextImgPin) | (1ULL << tRtcIntPin);
+    esp_sleep_enable_ext1_wakeup(tExt1Mask, ESP_EXT1_WAKEUP_ANY_LOW);
+    rtc_gpio_pullup_dis(static_cast<gpio_num_t>(tSettingPin));
+    rtc_gpio_pulldown_en(static_cast<gpio_num_t>(tSettingPin));
+    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(tSettingPin), 1);
+    uint64_t tTimerSec = tDelaySec;
+    if (tAlarmArmed) {
+      const uint64_t tSafety = (tDelaySec / 20) + 30;
+      tTimerSec = tDelaySec + tSafety;
+    }
+    esp_sleep_enable_timer_wakeup(tTimerSec * kSecToUs);
     esp_deep_sleep_start();
-  }  
+  }
 
   void Utils_::SleepLowBattery() {
     xLOG("Low battery entering deep sleep..\n\n");
